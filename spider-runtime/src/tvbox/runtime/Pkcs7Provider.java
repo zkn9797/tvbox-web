@@ -9,11 +9,18 @@ public final class Pkcs7Provider extends Provider {
       {"DES", "CBC", DesCbc.class.getName()}, {"DES", "ECB", DesEcb.class.getName()}, {"DESede", "CBC", DesedeCbc.class.getName()}, {"DESede", "ECB", DesedeEcb.class.getName()}};
     for (String[] x : t) { put("Cipher." + x[0] + "/" + x[1] + "/PKCS7Padding", x[2]); put("Cipher." + x[0] + "/" + x[1] + "/PKCS7", x[2]); }
     put("Cipher.AES//PKCS7Padding", AesEcb.class.getName());
+    // Android: Cipher.getInstance("RSA") is RSA/ECB/NoPadding (the JDK defaults to PKCS1Padding); explicit paddings pass through
+    put("Cipher.RSA", Rsa.class.getName());
   }
   public static class AesCbc extends Wrap { public AesCbc() { super("AES", "CBC"); } } public static class AesEcb extends Wrap { public AesEcb() { super("AES", "ECB"); } }
   public static class AesCfb extends Wrap { public AesCfb() { super("AES", "CFB"); } } public static class AesOfb extends Wrap { public AesOfb() { super("AES", "OFB"); } }
   public static class DesCbc extends Wrap { public DesCbc() { super("DES", "CBC"); } } public static class DesEcb extends Wrap { public DesEcb() { super("DES", "ECB"); } }
   public static class DesedeCbc extends Wrap { public DesedeCbc() { super("DESede", "CBC"); } } public static class DesedeEcb extends Wrap { public DesedeEcb() { super("DESede", "ECB"); } }
+  public static class Rsa extends Wrap { public Rsa() { super("RSA", "ECB"); pad = "NoPadding"; }
+    @Override protected void engineSetPadding(String p) { pad = p.equalsIgnoreCase("NONE") ? "NoPadding" : p; }
+    @Override protected int engineGetBlockSize() { return 0; }
+    @Override protected int engineGetKeySize(Key k) { return k instanceof java.security.interfaces.RSAKey ? ((java.security.interfaces.RSAKey) k).getModulus().bitLength() : 0; }
+    @Override protected void engineSetMode(String m) { mode = m.equalsIgnoreCase("NONE") ? "ECB" : m; } }
   public abstract static class Wrap extends CipherSpi {
     final String alg; String mode = "ECB", pad = "PKCS5Padding"; Cipher c;
     Wrap(String a, String m) { alg = a; mode = m; }
