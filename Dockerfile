@@ -47,7 +47,7 @@ ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 NODE_ENV=production DATA_DIR=/data PORT=8686 TZ=
     ENABLE_SPIDER=1 ENABLE_SNIFFER=1 \
     CHROMIUM_PATH=/usr/bin/chromium IDLE_CLOSE_S=120 MAX_PAGES=2 \
     IDLE_UNLOAD_MIN=10 CALL_TIMEOUT_S=25 \
-    JAVA_OPTS="-Xmx224m -Xms16m -Xss320k -Xtune:virtualized -XX:+IdleTuningGcOnIdle -XX:+IdleTuningCompactOnIdle -XX:IdleTuningMinIdleWaitTime=60 -Xshareclasses:name=tvbox,cacheDir=/data/spider/scc,nonfatal -Xscmx40m -Dfile.encoding=UTF-8"
+    JAVA_OPTS="-Xmx320m -Xdump:none -Xdump:exit:events=systhrow,filter=java/lang/OutOfMemoryError -Xms16m -Xss320k -Xtune:virtualized -XX:+IdleTuningGcOnIdle -XX:+IdleTuningCompactOnIdle -XX:IdleTuningMinIdleWaitTime=60 -Xshareclasses:name=tvbox,cacheDir=/data/spider/scc,nonfatal -Xscmx40m -Dfile.encoding=UTF-8"
 EXPOSE 8686
 VOLUME ["/data"]
 HEALTHCHECK --interval=60s --timeout=5s --retries=3 CMD wget -q -O- http://127.0.0.1:8686/healthz || exit 1

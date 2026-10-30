@@ -14,7 +14,7 @@ COPY lib ./lib
 COPY build/spider-runtime.jar ./spider-runtime.jar
 # bionic-name stubs so Android NDK .so files from spider jars can dlopen on glibc (see Native.java)
 ENV LD_LIBRARY_PATH=/app/android-libs DATA_DIR=/data PORT=9978 IDLE_UNLOAD_MIN=10 CALL_TIMEOUT_S=25 \
-    JAVA_OPTS="-Xmx224m -Xms16m -Xss320k -Xtune:virtualized -XX:+IdleTuningGcOnIdle -XX:+IdleTuningCompactOnIdle -XX:IdleTuningMinIdleWaitTime=60 -Xshareclasses:name=tvbox,cacheDir=/data/scc,nonfatal -Xscmx40m -Dfile.encoding=UTF-8"
+    JAVA_OPTS="-Xmx320m -Xdump:none -Xdump:exit:events=systhrow,filter=java/lang/OutOfMemoryError -Xms16m -Xss320k -Xtune:virtualized -XX:+IdleTuningGcOnIdle -XX:+IdleTuningCompactOnIdle -XX:IdleTuningMinIdleWaitTime=60 -Xshareclasses:name=tvbox,cacheDir=/data/scc,nonfatal -Xscmx40m -Dfile.encoding=UTF-8"
 USER 1000
 EXPOSE 9978
 VOLUME ["/data"]
