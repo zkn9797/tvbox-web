@@ -17,8 +17,12 @@ public class NativeLoader extends URLClassLoader {
     byte[] b;
     try (InputStream in = u.openStream()) { b = in.readAllBytes(); } catch (IOException e) { throw new ClassNotFoundException(name, e); }
     if (contains(b, "loadLibrary") || contains(b, "java/lang/System") || contains(b, "java/lang/Runtime") || contains(b, "crawler/Spider") || contains(b, "$d2j$hex$") || contains(b, "danmuStart")) { try { b = rewrite(b); } catch (Throwable t) { /* keep original */ } }
+    if (FIX_FRAMES) { try { b = frames().fix(b); } catch (Throwable t) { System.err.println("[frames] " + name + ": " + t); } }
     return defineClass(name, b, 0, b.length);
   }
+  static final boolean FIX_FRAMES = !"0".equals(System.getenv("FIX_FRAMES"));
+  private Frames frames;
+  synchronized Frames frames() { if (frames == null) frames = new Frames(this); return frames; }
   static int indexOf(byte[] b, byte[] p) { outer: for (int i = 0; i + p.length <= b.length; i++) { for (int j = 0; j < p.length; j++) if (b[i + j] != p[j]) continue outer; return i; } return -1; }
   static boolean contains(byte[] b, String s) { byte[] p = s.getBytes(); outer: for (int i = 0; i + p.length <= b.length; i++) { for (int j = 0; j < p.length; j++) if (b[i + j] != p[j]) continue outer; return true; } return false; }
   static byte[] rewrite(byte[] b) {

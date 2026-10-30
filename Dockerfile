@@ -30,7 +30,8 @@ RUN mkdir -p /app/android-libs && for d in /lib/aarch64-linux-gnu /lib/x86_64-li
       [ -e $d/libc.so.6 ] || continue; cd /app/android-libs; ln -sf $d/libc.so.6 libc.so; ln -sf $d/libm.so.6 libm.so; ln -sf $d/libdl.so.2 libdl.so; \
       for l in liblog libandroid libz libstdc++ libc++_shared libjnigraphics libOpenSLES libEGL libGLESv2; do [ -e $l.so ] || ln -sf $d/libdl.so.2 $l.so; done; \
       [ -e $d/libz.so.1 ] && ln -sf $d/libz.so.1 libz.so; break; done \
- && a=$(uname -m); if [ -f /tmp/android-shim/$a/liblog.so ]; then rm -f /app/android-libs/liblog.so; cp /tmp/android-shim/$a/liblog.so /app/android-libs/liblog.so; fi; rm -rf /tmp/android-shim
+ && a=$(uname -m); if [ -f /tmp/android-shim/$a/liblog.so ]; then rm -f /app/android-libs/liblog.so; cp /tmp/android-shim/$a/liblog.so /app/android-libs/liblog.so; fi \
+ && if [ -f /tmp/android-shim/$a/libc.so ]; then rm -f /app/android-libs/libc.so; cp /tmp/android-shim/$a/libc.so /app/android-libs/libc.so; fi; rm -rf /tmp/android-shim
 WORKDIR /app
 COPY spider-runtime/lib ./spider/lib
 COPY spider-runtime/build/spider-runtime.jar ./spider/spider-runtime.jar

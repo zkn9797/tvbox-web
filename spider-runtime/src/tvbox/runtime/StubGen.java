@@ -21,10 +21,16 @@ final class StubGen {
       { "android/widget/BaseAdapter", "java/lang/Object" }, { "android/webkit/WebView", "android/widget/FrameLayout" }, { "com/tencent/smtt/sdk/WebView", "android/widget/FrameLayout" },
       { "android/app/Service", "android/content/ContextWrapper" }, { "android/app/Fragment", "java/lang/Object" }, { "android/text/TextPaint", "android/graphics/Paint" },
       { "android/graphics/drawable/GradientDrawable", "android/graphics/drawable/Drawable" }, { "android/graphics/drawable/StateListDrawable", "android/graphics/drawable/Drawable" },
-      { "android/graphics/drawable/LayerDrawable", "android/graphics/drawable/Drawable" }, { "android/os/HandlerThread", "java/lang/Thread" }, { "android/os/BaseBundle", "java/lang/Object" },
+      { "android/graphics/drawable/LayerDrawable", "android/graphics/drawable/Drawable" }, { "android/os/HandlerThread", "java/lang/Thread" },
+      { "android/graphics/LinearGradient", "android/graphics/Shader" }, { "android/graphics/RadialGradient", "android/graphics/Shader" }, { "android/graphics/SweepGradient", "android/graphics/Shader" },
+      { "android/graphics/BitmapShader", "android/graphics/Shader" }, { "android/graphics/ComposeShader", "android/graphics/Shader" }, { "android/widget/EditText", "android/widget/TextView" }, { "android/os/BaseBundle", "java/lang/Object" },
     };
     for (String[] p : t) SUPER.put(p[0], p[1]);
   }
+  /** Android types that are interfaces even when a jar never invokes them as such (verifier assignability) */
+  static final Set<String> KNOWN_ITF = new HashSet<>(Arrays.asList("android/view/KeyEvent$Callback", "android/view/Window$Callback",
+      "android/graphics/drawable/Drawable$Callback", "android/view/ViewParent", "android/view/ViewManager", "android/text/Spanned", "android/text/Spannable",
+      "android/text/Editable", "android/text/TextWatcher", "android/content/DialogInterface", "android/os/Parcelable", "android/view/accessibility/AccessibilityEventSource"));
   static final Map<String, String[]> IFACES = new HashMap<>();
   static { IFACES.put("android/widget/BaseAdapter", new String[]{ "android/widget/ListAdapter" }); IFACES.put("android/text/SpannableString", new String[]{ "java/lang/CharSequence" }); IFACES.put("android/text/SpannableStringBuilder", new String[]{ "java/lang/CharSequence", "android/text/Editable" }); }
 
@@ -71,7 +77,7 @@ final class StubGen {
   boolean knows(String in) { return refs.contains(in) || SUPER.containsKey(in) || SUPER.containsValue(in); }
 
   byte[] make(String in, ClassLoader cl) {
-    boolean isI = Boolean.TRUE.equals(iface.get(in)) || (!iface.containsKey(in) && in.matches(".*(Listener|Callback|Watcher|Handler|Interface|Function|Callable|Getter|Filter)(\\$.*)?$") && !in.endsWith("$Callback"));
+    boolean isI = KNOWN_ITF.contains(in) || Boolean.TRUE.equals(iface.get(in)) || (!iface.containsKey(in) && in.matches(".*(Listener|Callback|Watcher|Handler|Interface|Function|Callable|Getter|Filter)(\\$.*)?$") && !in.endsWith("$Callback"));
     Set<String> ms = members.getOrDefault(in, Collections.emptySet());
     ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
     if (isI) {

@@ -24,13 +24,13 @@ public class JarManager {
       String key = "local2-" + md5(raw);
       File d = INSTANCE.dir;
       if (raw.length > 4 && raw[0] == 'd' && raw[1] == 'e' && raw[2] == 'x') {
-        File out = new File(d, key + ".dex0.jar");
+        File out = new File(d, key + "." + DexFix.VERSION + ".dex0.jar");
         if (!out.exists() || out.length() < 200) { File tmp = new File(d, key + ".dex"); Files.write(tmp.toPath(), raw); d2j(tmp, out); }
         urls.add(out.toURI().toURL());
       } else {
         File src = new File(d, key + ".src.jar"); if (!src.exists()) Files.write(src.toPath(), extractZip(raw));
         try (ZipFile zf = new ZipFile(src)) { int i = 0; for (ZipEntry e : Collections.list(zf.entries())) { if (!e.getName().matches("classes\\d*\\.dex")) continue;
-          File out = new File(d, key + ".dex" + (i++) + ".jar");
+          File out = new File(d, key + "." + DexFix.VERSION + ".dex" + (i++) + ".jar");
           if (!out.exists() || out.length() < 200) { File tmp = new File(d, key + ".tmp.dex"); try (InputStream in = zf.getInputStream(e)) { Files.copy(in, tmp.toPath(), StandardCopyOption.REPLACE_EXISTING); }
             d2j(tmp, out); }
           urls.add(out.toURI().toURL()); } }
@@ -45,8 +45,8 @@ public class JarManager {
   /** dex -> jar via a .part file, so an interrupted conversion never leaves a broken cache entry */
   static synchronized void d2j(File dex, File out) throws IOException {
     File part = new File(out.getPath() + ".part"); part.delete(); long t0 = System.currentTimeMillis();
-    com.googlecode.dex2jar.tools.Dex2jarCmd.main(new String[]{"-f", "-o", part.getAbsolutePath(), dex.getAbsolutePath()});
-    dex.delete();
+    try { DexFix.convert(dex, part); } catch (Exception e) { part.delete(); throw new IOException("dex2jar failed for " + dex.getName() + ": " + e, e); }
+    dex.delete(); new File(out.getPath().replace("." + DexFix.VERSION + ".", ".")).delete(); // cache from an older conversion
     if (!part.exists() || part.length() < 200) { part.delete(); throw new IOException("dex2jar failed for " + dex.getName()); }
     Files.move(part.toPath(), out.toPath(), StandardCopyOption.REPLACE_EXISTING);
     System.err.println("[jar] converted local dex " + out.getName() + " in " + (System.currentTimeMillis() - t0) + "ms");
@@ -84,7 +84,7 @@ public class JarManager {
         byte[] zip = extractZip(raw);
         if (want != null && !md5(raw).equals(want) && !md5(zip).equals(want)) System.err.println("[jar] md5 mismatch for " + url + " (using anyway)");
         Files.write(src.toPath(), zip);
-        for (File old : dir.listFiles((d, n) -> n.startsWith(key + ".dex"))) old.delete();
+        for (File old : dir.listFiles((d, n) -> n.startsWith(key + ".") && n.endsWith(".jar") && !n.endsWith(".src.jar"))) old.delete();
       }
       List<URL> urls = new ArrayList<>();
       try (ZipFile zf = new ZipFile(src)) {
@@ -92,14 +92,14 @@ public class JarManager {
         int i = 0;
         for (ZipEntry e : dexes) {
           if (!e.getName().matches("classes\\d*\\.dex")) continue;
-          File out = new File(dir, key + ".dex" + (i++) + ".jar");
+          File out = new File(dir, key + "." + DexFix.VERSION + ".dex" + (i++) + ".jar");
           if (!out.exists() || out.length() < 200) {
+            new File(dir, key + ".dex" + (i - 1) + ".jar").delete(); // cache from an older conversion
             File part = new File(dir, key + ".dex" + (i - 1) + ".part.jar"); part.delete();
             File tmp = File.createTempFile("dex", ".dex", dir);
             try (InputStream in = zf.getInputStream(e)) { Files.copy(in, tmp.toPath(), StandardCopyOption.REPLACE_EXISTING); }
             long t0 = System.currentTimeMillis();
-            com.googlecode.dex2jar.tools.Dex2jarCmd.main(new String[]{"-f", "-o", part.getAbsolutePath(), tmp.getAbsolutePath()});
-            tmp.delete();
+            try { DexFix.convert(tmp, part); } catch (Exception ex) { part.delete(); throw new IOException("dex2jar failed for " + e.getName() + ": " + ex, ex); } finally { tmp.delete(); }
             if (!part.exists() || part.length() < 200) throw new IOException("dex2jar failed for " + e.getName());
             Files.move(part.toPath(), out.toPath(), StandardCopyOption.REPLACE_EXISTING);
             System.err.println("[jar] converted " + url + " " + e.getName() + " in " + (System.currentTimeMillis() - t0) + "ms");
