@@ -81,6 +81,7 @@ public class Main {
       if (c instanceof NoClassDefFoundError || c instanceof ClassNotFoundException) msg = "unsupported (missing class " + c.getMessage() + ")";
       try { out.put("error", msg.length() > 300 ? msg.substring(0, 300) : msg); } catch (JSONException ignore) { }
       if (System.getenv("SPIDER_DEBUG") != null) t.printStackTrace();
+      else if (c instanceof LinkageError || c instanceof RuntimeException) { StringBuilder sb = new StringBuilder("[call-error] ").append(msg); StackTraceElement[] st = c.getStackTrace(); for (int i = 0; i < Math.min(12, st.length); i++) sb.append("\n    at ").append(st[i]); System.err.println(sb); }
     }
     send(ex, 200, "application/json; charset=utf-8", out.toString().getBytes(StandardCharsets.UTF_8));
   }

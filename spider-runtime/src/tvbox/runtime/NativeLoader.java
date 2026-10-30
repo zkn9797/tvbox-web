@@ -7,7 +7,12 @@ public class NativeLoader extends URLClassLoader {
   public NativeLoader(URL[] urls, ClassLoader parent) { super(urls, parent); }
   private StubGen stubGen;
   synchronized StubGen stubs() { if (stubGen == null) stubGen = new StubGen(getURLs()); return stubGen; }
+  static final ThreadLocal<java.util.Set<String>> BUSY = ThreadLocal.withInitial(java.util.HashSet::new);
   @Override protected Class<?> findClass(String name) throws ClassNotFoundException {
+    if (!BUSY.get().add(name)) { new Throwable("[loader] recursive findClass " + name).printStackTrace(); }
+    try { return findClass0(name); } finally { BUSY.get().remove(name); }
+  }
+  private Class<?> findClass0(String name) throws ClassNotFoundException {
     URL u = findResource(name.replace('.', '/') + ".class");
     if (u == null) {
       String in = name.replace('.', '/');

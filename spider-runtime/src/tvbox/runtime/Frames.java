@@ -26,7 +26,8 @@ final class Frames {
     try { URL u = cl.getResource(in + ".class");
       if (u != null) { try (InputStream s = u.openStream()) { ClassReader r = new ClassReader(s.readAllBytes()); sup = r.getSuperName(); itf = (r.getAccess() & Opcodes.ACC_INTERFACE) != 0; } }
       else if (StubGen.eligible(in)) { sup = StubGen.superOf(in); itf = StubGen.KNOWN_ITF.contains(in); }
-      else { Class<?> c = Class.forName(in.replace('/', '.'), false, cl); itf = c.isInterface(); sup = c.getSuperclass() == null ? null : c.getSuperclass().getName().replace('.', '/'); }
+      else if (in.startsWith("[")) { /* array: Object as far as the merge goes; never load its element class here */ }
+      else { Class<?> c = Class.forName(in.replace('/', '.'), false, cl.getParent() != null ? cl.getParent() : cl); /* never re-enter the loader that is defining a class */ itf = c.isInterface(); sup = c.getSuperclass() == null ? null : c.getSuperclass().getName().replace('.', '/'); }
     } catch (Throwable t) { }
     if (sup == null && !"java/lang/Object".equals(in)) sup = "java/lang/Object";
     h = new H(sup, itf); hier.put(in, h); return h;
@@ -37,10 +38,13 @@ final class Frames {
     ClassReader cr = new ClassReader(b);
     ClassNode cn = new ClassNode(); cr.accept(cn, ClassReader.SKIP_FRAMES);
     boolean itf = (cn.access & Opcodes.ACC_INTERFACE) != 0;
+    needV8 = false;
+    for (MethodNode m : cn.methods) if (m.instructions.size() > 0) try { patchMissing(m); } catch (Throwable t) { if (DBG) System.err.println("[frames] missing " + cn.name + "." + m.name + ": " + t); }
     for (MethodNode m : cn.methods) {
       if (m.instructions.size() == 0) continue;
       try { fixMethod(cn, m); } catch (Throwable t) { if (DBG) System.err.println("[frames] " + cn.name + "." + m.name + ": " + t); }
     }
+    if (needV8 && (cn.version & 0xFFFF) < Opcodes.V1_8) cn.version = Opcodes.V1_8;
     if (!itf && cn.superName != null) {
       Set<String> ds = new TreeSet<>(); ds.add("()V"); Set<String> nd = NEED.get(cn.name); if (nd != null) ds.addAll(nd);
       for (MethodNode m0 : cn.methods) if ("<init>".equals(m0.name)) ds.remove(m0.desc);
@@ -63,6 +67,56 @@ final class Frames {
     };
     cn.accept(w);
     return w.toByteArray();
+  }
+
+  // ---- 4. calls to Android members our hand-written android.* classes do not implement (UI-only code) ----
+  final Map<String, Boolean> present = new ConcurrentHashMap<>();
+  Class<?> runtimeClass(String in) { try { ClassLoader p = cl.getParent(); return p == null ? null : Class.forName(in.replace('/', '.'), false, p); } catch (Throwable t) { return null; } }
+  boolean exists(String owner, String name, String desc, boolean method) {
+    return present.computeIfAbsent(owner + ' ' + name + ' ' + desc + method, k -> {
+      Class<?> c = runtimeClass(owner); if (c == null) return true; // a stub (generated with every referenced member) or not android
+      Deque<Class<?>> q = new ArrayDeque<>(); q.add(c); Set<Class<?>> seen = new HashSet<>();
+      try { while (!q.isEmpty()) { Class<?> x = q.poll(); if (!seen.add(x)) continue;
+        if (!method) { for (java.lang.reflect.Field f : x.getDeclaredFields()) if (f.getName().equals(name)) return true; }
+        else if ("<init>".equals(name)) { for (java.lang.reflect.Constructor<?> k2 : x.getDeclaredConstructors()) if (Type.getConstructorDescriptor(k2).equals(desc)) return true; return false; }
+        else for (java.lang.reflect.Method mm : x.getDeclaredMethods()) if (mm.getName().equals(name) && Type.getMethodDescriptor(mm).equals(desc)) return true;
+        if (x.getSuperclass() != null) q.add(x.getSuperclass()); q.addAll(Arrays.asList(x.getInterfaces())); } } catch (Throwable t) { return true; }
+      return false; });
+  }
+  static boolean androidOwner(String o) { return o.startsWith("android/") || o.startsWith("androidx/") || o.startsWith("dalvik/"); }
+  static void pop(InsnList l, Type t) { l.add(new InsnNode(t.getSize() == 2 ? Opcodes.POP2 : Opcodes.POP)); }
+  static void push(InsnList l, Type t) {
+    switch (t.getSort()) { case Type.VOID: break; case Type.LONG: l.add(new InsnNode(Opcodes.LCONST_0)); break; case Type.FLOAT: l.add(new InsnNode(Opcodes.FCONST_0)); break;
+      case Type.DOUBLE: l.add(new InsnNode(Opcodes.DCONST_0)); break; case Type.OBJECT: case Type.ARRAY: if ("Ljava/lang/String;".equals(t.getDescriptor())) l.add(new LdcInsnNode("")); else l.add(new InsnNode(Opcodes.ACONST_NULL)); break;
+      default: l.add(new InsnNode(Opcodes.ICONST_0)); }
+  }
+  boolean needV8; // set when an interface Methodref needs class file version 52+
+  void patchMissing(MethodNode m) {
+    for (AbstractInsnNode i : m.instructions.toArray()) {
+      InsnList rep = new InsnList();
+      if (i instanceof MethodInsnNode && (i.getOpcode() == Opcodes.INVOKESTATIC || i.getOpcode() == Opcodes.INVOKESPECIAL) && !((MethodInsnNode) i).itf && !((MethodInsnNode) i).owner.startsWith("[") && info(((MethodInsnNode) i).owner).itf)
+        { ((MethodInsnNode) i).itf = true; needV8 = true; } // dex2jar emits a Methodref for static/private interface methods (Comparator.comparing): ICCE on the JVM
+      if (i instanceof MethodInsnNode) { MethodInsnNode mi = (MethodInsnNode) i; if (!androidOwner(mi.owner) || exists(mi.owner, mi.name, mi.desc, true)) continue;
+        Type[] at = Type.getArgumentTypes(mi.desc); for (int a = at.length - 1; a >= 0; a--) pop(rep, at[a]);
+        if ("<init>".equals(mi.name)) { // fall back to a constructor the class has
+          if (exists(mi.owner, "<init>", "()V", true)) rep.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, mi.owner, "<init>", "()V", false));
+          else if (exists(mi.owner, "<init>", "(Landroid/content/Context;)V", true)) { rep.add(new InsnNode(Opcodes.ACONST_NULL)); rep.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, mi.owner, "<init>", "(Landroid/content/Context;)V", false)); }
+          else continue;
+        } else {
+          Type r = Type.getReturnType(mi.desc);
+          boolean self = mi.getOpcode() != Opcodes.INVOKESTATIC && r.getSort() == Type.OBJECT && chain(mi.owner).contains(r.getInternalName()) && !"java/lang/Object".equals(r.getInternalName());
+          if (mi.getOpcode() != Opcodes.INVOKESTATIC && !self) rep.add(new InsnNode(Opcodes.POP));
+          if (!self) push(rep, r);
+        }
+        if (DBG) System.err.println("[frames] no-op missing " + mi.owner + "." + mi.name + mi.desc);
+      } else if (i instanceof FieldInsnNode) { FieldInsnNode fi = (FieldInsnNode) i; if (!androidOwner(fi.owner) || exists(fi.owner, fi.name, fi.desc, false)) continue;
+        Type t = Type.getType(fi.desc);
+        switch (i.getOpcode()) { case Opcodes.GETSTATIC: push(rep, t); break; case Opcodes.GETFIELD: rep.add(new InsnNode(Opcodes.POP)); push(rep, t); break;
+          case Opcodes.PUTSTATIC: pop(rep, t); break; default: pop(rep, t); rep.add(new InsnNode(Opcodes.POP)); }
+      } else continue;
+      if (rep.size() == 0) rep.add(new InsnNode(Opcodes.NOP));
+      m.instructions.insert(i, rep); m.instructions.remove(i);
+    }
   }
 
   /** where a stack/local value was allocated: NEW nodes, or THIS for the constructor's receiver */
