@@ -1,0 +1,2 @@
+package android.net.wifi;
+public class WifiInfo { public int getIpAddress() { try { byte[] a = java.net.InetAddress.getLocalHost().getAddress(); return (a[0]&255) | (a[1]&255)<<8 | (a[2]&255)<<16 | (a[3]&255)<<24; } catch (Exception e) { return 0; } } public String getSSID() { return "<unknown ssid>"; } public String getMacAddress() { return "02:00:00:00:00:00"; } }

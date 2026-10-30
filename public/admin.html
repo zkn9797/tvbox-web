@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>管理后台 · TVBox Web</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+ .wrap{max-width:980px;margin:0 auto;padding:12px}
+ .box{background:#1b1e23;border:1px solid #2a2d34;border-radius:12px;padding:14px;margin-bottom:14px}
+ .box h2{font-size:16px;margin:0 0 10px}
+ table{width:100%;border-collapse:collapse;font-size:13px}
+ td,th{padding:7px 6px;border-bottom:1px solid #2a2d34;text-align:left;vertical-align:middle;word-break:break-all}
+ th{color:#999;font-weight:500}
+ .f{display:flex;gap:8px;flex-wrap:wrap}.f input{flex:1 1 160px}
+ textarea{width:100%;min-height:90px;background:#22252b;border:1px solid #33363e;border-radius:8px;color:inherit;padding:8px;font:12px monospace}
+ .sm{padding:4px 8px;font-size:12px}
+ .red{background:#c0392b}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar"><b style="font-size:18px">TVBox Web 管理后台</b><a href="/" style="margin-left:auto">返回首页</a><a href="javascript:void 0" id="logout">退出</a></div>
+
+  <div id="login" class="box hidden">
+    <h2>管理员登录</h2>
+    <form id="lf" class="f"><input name="username" placeholder="管理员用户名" value="admin" autocomplete="username"><input name="password" type="password" placeholder="密码" autocomplete="current-password"><button>登录</button></form>
+    <p class="err" id="lerr"></p>
+  </div>
+
+  <div id="main" class="hidden">
+    <div class="box">
+      <h2>配置源（TVBox 配置地址）</h2>
+      <form id="cf" class="f">
+        <input name="name" placeholder="名称（如 饭太硬）">
+        <input name="url" placeholder="配置地址 http(s)://…  支持单仓 / 多仓 / 图片隐写 / base64">
+        <button>添加</button>
+      </form>
+      <details style="margin-top:8px"><summary class="muted">或直接粘贴配置 JSON</summary><textarea id="cjson" placeholder='{"sites":[...]}'></textarea><button id="addJson" class="sm" style="margin-top:6px">添加 JSON 配置</button></details>
+      <p class="muted" id="cinfo"></p>
+      <table><thead><tr><th>#</th><th>名称</th><th>地址</th><th>启用</th><th>操作</th></tr></thead><tbody id="ct"></tbody></table>
+    </div>
+
+    <div class="box">
+      <h2>网络（可选）</h2>
+      <p class="muted" style="margin-top:0">默认直连即可（已内置：3 秒连接超时、多 IP 轮换重试、失败时返回旧缓存）。若源站在 Cloudflare 上且直连常超时：可填写<b>上游代理</b>（如路由器上的 OpenClash/mihomo 混合端口 <code>http://172.18.0.1:7890</code>，填 <code>auto</code> 自动探测网关 7890/7897，留空=不用代理；代理不可用时自动回退直连），或填写 <b>Cloudflare 优选IP</b>（逗号/换行分隔，仅用于解析到 Cloudflare 的域名，SNI/Host 不变）。</p>
+      <form id="nf" class="f"><input name="proxy" placeholder="上游代理（留空=直连）"><textarea name="cfips" rows="2" placeholder="Cloudflare 优选IP，例如 104.16.1.1, 172.67.2.2" style="flex:1 1 100%"></textarea><button>保存</button></form>
+      <p class="muted" id="ninfo"></p>
+    </div>
+
+    <div class="box">
+      <h2>Jar 爬虫运行时（spider-runtime）</h2>
+      <p class="muted" style="margin-top:0">肥猫/饭太硬等配置里的 csp_ 站点需要它。已内置在同一个容器里，留空即使用内置运行时；也可以填局域网里更强的电脑/x86 盒子上的地址。</p>
+      <form id="rf" class="f"><input name="url" placeholder="留空 = 内置"><input name="token" placeholder="访问令牌（可选，与运行时 RUNTIME_TOKEN 一致）"><button>保存</button></form>
+      <p class="muted" id="rinfo"></p>
+    </div>
+
+    <div class="box">
+      <h2>无头浏览器嗅探（sniffer）</h2>
+      <p class="muted" style="margin-top:0">普通嗅探找不到视频地址时，交给无头 Chromium 打开页面抓取（解析页、需要 WebView 的站点）。已内置在同一个容器里（lite 镜像不含），留空即使用内置嗅探器；也可以填局域网里更强机器上的地址。空闲 2 分钟自动关闭浏览器释放内存。</p>
+      <form id="sf" class="f"><input name="url" placeholder="留空 = 内置"><input name="token" placeholder="访问令牌（可选，与 SNIFFER_TOKEN 一致）"><button>保存</button></form>
+      <p class="muted" id="sinfo"></p>
+    </div>
+
+    <div class="box">
+      <h2>用户</h2>
+      <form id="uf" class="f"><input name="username" placeholder="新用户名"><input name="password" placeholder="初始密码（≥6位）"><button>添加用户</button></form>
+      <p class="err" id="uerr"></p>
+      <table><thead><tr><th>ID</th><th>用户名</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead><tbody id="ut"></tbody></table>
+    </div>
+
+    <div class="box">
+      <h2>修改管理员密码</h2>
+      <form id="pf" class="f"><input name="old" type="password" placeholder="原密码"><input name="password" type="password" placeholder="新密码（≥6位）"><button>保存</button></form>
+      <p class="err" id="perr"></p>
+    </div>
+
+    <div class="box">
+      <h2>运行状态</h2>
+      <div id="stats" class="muted">…</div>
+      <table><thead><tr><th>站点</th><th>成功</th><th>失败</th><th>连续失败</th><th>平均耗时</th></tr></thead><tbody id="ht"></tbody></table>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+(function(){
+  var base = location.pathname.replace(/\/+$/,'');
+  var $ = function(s){return document.querySelector(s);};
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function toast(m){var d=document.createElement('div');d.textContent=m;$('#toast').appendChild(d);setTimeout(function(){d.remove();},3000);}
+  function api(p,o){o=o||{};var init={method:o.method||'GET',credentials:'same-origin',headers:{}};if(o.body!==undefined){init.headers['Content-Type']='application/json';init.body=JSON.stringify(o.body);}
+    return fetch(p,init).then(function(r){return r.json().catch(function(){return {};}).then(function(j){if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));return j;});});}
+  function A(p){return base+'/api'+p;}
+  function boot(){api('/api/me').then(function(j){ if(j.user&&j.user.is_admin){$('#login').classList.add('hidden');$('#main').classList.remove('hidden');loadAll();} else {$('#login').classList.remove('hidden');$('#main').classList.add('hidden');}});}
+  $('#lf').onsubmit=function(e){e.preventDefault();api('/api/login',{method:'POST',body:{username:this.username.value,password:this.password.value}}).then(function(j){if(!j.user.is_admin)throw new Error('该账号不是管理员');boot();}).catch(function(er){$('#lerr').textContent=er.message;});};
+  $('#logout').onclick=function(){api('/api/logout',{method:'POST'}).then(boot);};
+  function loadAll(){loadConfigs();loadUsers();loadStats();loadRuntime();loadSniffer();loadNet();}
+  function loadRuntime(){api(A('/runtime')).then(function(r){$('#rf').url.value=r.url||'';
+    $('#rinfo').textContent=!r.url?'未启用':(r.health?('在线 · 已加载 jar '+r.health.jars+' 个 · 爬虫实例 '+r.health.spiders+' 个 · 堆 '+r.health.heap_used_mb+'/'+r.health.heap_total_mb+' MB'):('无法连接：'+(r.error||'')));});}
+  $('#rf').onsubmit=function(e){e.preventDefault();var b={url:this.url.value.trim()};if(this.token.value)b.token=this.token.value;api(A('/runtime'),{method:'POST',body:b}).then(function(){toast('已保存');loadRuntime();});};
+  function loadNet(){api(A('/network')).then(function(r){$('#nf').proxy.value=r.proxy||'';$('#nf').cfips.value=r.cfIps||'';
+    $('#ninfo').textContent='当前：'+(r.active?('经代理 '+r.active):'直连')+(r.env?(' · 环境变量 UPSTREAM_PROXY='+r.env):'')+' · 统计 直连 '+r.stats.direct+' / 代理 '+r.stats.proxy+' / 代理回退 '+r.stats.proxyFallback+' / 重试 '+r.stats.retries;});}
+  $('#nf').onsubmit=function(e){e.preventDefault();api(A('/network'),{method:'POST',body:{proxy:this.proxy.value.trim(),cfIps:this.cfips.value}}).then(function(){toast('已保存');loadNet();}).catch(function(er){toast(er.message);});};
+  function loadSniffer(){api(A('/sniffer')).then(function(r){$('#sf').url.value=r.url||'';
+    $('#sinfo').textContent=!r.url?'未启用':(r.health?('在线 · 浏览器'+(r.health.browser?'运行中':'空闲已关闭')+' · 进行中 '+r.health.active+' · 内存 '+r.health.rss_mb+' MB'):('无法连接：'+(r.error||'')));});}
+  $('#sf').onsubmit=function(e){e.preventDefault();var b={url:this.url.value.trim()};if(this.token.value)b.token=this.token.value;api(A('/sniffer'),{method:'POST',body:b}).then(function(){toast('已保存');loadSniffer();});};
+  function loadConfigs(){api(A('/configs')).then(function(j){
+    $('#ct').innerHTML=j.configs.map(function(c){return '<tr><td>'+c.id+'</td><td><input value="'+esc(c.name)+'" data-name="'+c.id+'" style="width:110px"></td><td>'+(c.url?esc(c.url):'<span class="muted">内联 JSON ('+(c.inline_len||0)+' 字节)</span>')+'</td><td><input type="checkbox" data-en="'+c.id+'"'+(c.enabled?' checked':'')+'></td><td><button class="sm ghost" data-up="'+c.id+'" data-sort="'+c.sort+'">↑</button> <button class="sm ghost" data-ref="'+c.id+'">刷新</button> <button class="sm red" data-del="'+c.id+'">删除</button></td></tr>';}).join('');
+  });}
+  $('#ct').onclick=function(e){var t=e.target;
+    if(t.dataset.del){if(confirm('删除这个配置？'))api(A('/configs/'+t.dataset.del),{method:'DELETE'}).then(loadConfigs);}
+    if(t.dataset.ref){t.disabled=true;api(A('/configs/'+t.dataset.ref+'/refresh'),{method:'POST'}).then(function(){toast('已刷新');}).catch(function(er){toast(er.message);}).then(function(){t.disabled=false;});}
+    if(t.dataset.up){api(A('/configs/'+t.dataset.up),{method:'PATCH',body:{sort:Number(t.dataset.sort)-1.5}}).then(loadConfigs);}
+  };
+  $('#ct').onchange=function(e){var t=e.target;
+    if(t.dataset.en)api(A('/configs/'+t.dataset.en),{method:'PATCH',body:{enabled:t.checked?1:0}}).then(function(){toast('已保存');});
+    if(t.dataset.name)api(A('/configs/'+t.dataset.name),{method:'PATCH',body:{name:t.value}}).then(function(){toast('已保存');});
+  };
+  function addCfg(body,btn){$('#cinfo').textContent='正在加载并校验配置…';btn.disabled=true;api(A('/configs'),{method:'POST',body:body}).then(function(j){$('#cinfo').textContent='已添加：'+j.info;loadConfigs();}).catch(function(er){$('#cinfo').textContent='失败：'+er.message;}).then(function(){btn.disabled=false;});}
+  $('#cf').onsubmit=function(e){e.preventDefault();addCfg({name:this.name.value.trim(),url:this.url.value.trim()},this.querySelector('button'));};
+  $('#addJson').onclick=function(){var v=$('#cjson').value.trim();if(!v)return;addCfg({name:'自定义JSON',content:v},this);};
+  function loadUsers(){api(A('/users')).then(function(j){
+    $('#ut').innerHTML=j.users.map(function(u){return '<tr><td>'+u.id+'</td><td>'+esc(u.username)+'</td><td>'+(u.is_admin?'管理员':'用户')+'</td><td>'+new Date(u.created).toLocaleString()+'</td><td><button class="sm ghost" data-pw="'+u.id+'">重置密码</button> '+(u.is_admin?'':'<button class="sm red" data-del="'+u.id+'">删除</button>')+'</td></tr>';}).join('');
+  });}
+  $('#ut').onclick=function(e){var t=e.target;
+    if(t.dataset.del&&confirm('删除该用户及其观看历史/收藏？'))api(A('/users/'+t.dataset.del),{method:'DELETE'}).then(loadUsers).catch(function(er){toast(er.message);});
+    if(t.dataset.pw){var p=prompt('输入新密码（≥6位）');if(p)api(A('/users/'+t.dataset.pw+'/password'),{method:'POST',body:{password:p}}).then(function(){toast('密码已重置');}).catch(function(er){toast(er.message);});}
+  };
+  $('#uf').onsubmit=function(e){e.preventDefault();var f=this;api(A('/users'),{method:'POST',body:{username:f.username.value.trim(),password:f.password.value}}).then(function(){f.reset();$('#uerr').textContent='';loadUsers();}).catch(function(er){$('#uerr').textContent=er.message;});};
+  $('#pf').onsubmit=function(e){e.preventDefault();var f=this;api('/api/password',{method:'POST',body:{old:f.old.value,password:f.password.value}}).then(function(){f.reset();$('#perr').textContent='';toast('管理员密码已修改');}).catch(function(er){$('#perr').textContent=er.message;});};
+  function loadStats(){api(A('/stats')).then(function(s){
+    $('#stats').textContent='内存 RSS '+s.rss_mb+' MB · 堆 '+s.heap_mb+' MB · 运行 '+Math.round(s.uptime_s/60)+' 分钟 · JS爬虫进程 '+s.workers.filter(function(w){return w.alive;}).length+'/'+s.workers.length;
+    $('#ht').innerHTML=s.health.sort(function(a,b){return b.ok+b.fail-a.ok-a.fail;}).slice(0,80).map(function(h){return '<tr><td>'+esc(h.site)+'</td><td>'+h.ok+'</td><td>'+h.fail+'</td><td>'+h.consecutive_fail+'</td><td>'+h.avg_ms+'ms</td></tr>';}).join('');
+  });}
+  boot();
+})();
+</script>
+</body>
+</html>

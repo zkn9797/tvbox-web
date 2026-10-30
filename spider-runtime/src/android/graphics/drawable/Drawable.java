@@ -1,0 +1,3 @@
+package android.graphics.drawable;
+public abstract class Drawable { public void setBounds(int l, int t, int r, int b) {} public void setAlpha(int a) {} public ConstantState getConstantState() { return null; } public Drawable mutate() { return this; } public int getIntrinsicWidth() { return -1; } public int getIntrinsicHeight() { return -1; } public void draw(android.graphics.Canvas c) {} public void setColorFilter(int c, Object m) {}
+  public static abstract class ConstantState { public abstract Drawable newDrawable(); public Drawable newDrawable(android.content.res.Resources r) { return newDrawable(); } } }

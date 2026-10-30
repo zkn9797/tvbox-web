@@ -1,0 +1,7 @@
+package android.graphics;
+public class Bitmap { public int w, h; int[] px; public enum Config { ARGB_8888, RGB_565, ALPHA_8, ARGB_4444 } public enum CompressFormat { PNG, JPEG, WEBP }
+  public static Bitmap createBitmap(int w, int h, Config c) { Bitmap b = new Bitmap(); b.w = w; b.h = h; b.px = new int[Math.max(0, w*h)]; return b; }
+  public void setPixels(int[] p, int off, int stride, int x, int y, int w, int h) { for (int r = 0; r < h; r++) for (int c = 0; c < w; c++) { int i = (y+r)*this.w + x + c; if (i >= 0 && i < px.length) px[i] = p[off + r*stride + c]; } }
+  public void setPixel(int x, int y, int c) { px[y*w+x] = c; } public int getPixel(int x, int y) { return px[y*w+x]; } public int getWidth() { return w; } public int getHeight() { return h; }
+  public boolean compress(CompressFormat f, int q, java.io.OutputStream o) { try { java.awt.image.BufferedImage im = new java.awt.image.BufferedImage(Math.max(1,w), Math.max(1,h), java.awt.image.BufferedImage.TYPE_INT_ARGB); if (w > 0 && h > 0) im.setRGB(0, 0, w, h, px, 0, w); return javax.imageio.ImageIO.write(im, f == CompressFormat.JPEG ? "jpg" : "png", o); } catch (Throwable t) { return false; } }
+  public void recycle() {} public boolean isRecycled() { return false; } }

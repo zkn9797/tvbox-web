@@ -1,0 +1,2 @@
+package android.content.pm;
+public class PackageItemInfo { public String packageName, name; public android.os.Bundle metaData = new android.os.Bundle(); public android.content.res.XmlResourceParser loadXmlMetaData(PackageManager pm, String n) { return null; } public CharSequence loadLabel(PackageManager pm) { return name == null ? packageName : name; } public android.graphics.drawable.Drawable loadIcon(PackageManager pm) { return null; } }

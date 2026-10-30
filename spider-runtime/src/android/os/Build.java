@@ -1,0 +1,5 @@
+package android.os;
+public class Build { public static final String MODEL = "MiBOX4", MANUFACTURER = "Xiaomi", BRAND = "Xiaomi", ID = "QKQ1.190828.002", DEVICE = "once", PRODUCT = "once", BOARD = "once", HARDWARE = "amlogic", FINGERPRINT = "Xiaomi/once/once:11/RKQ1/1:user/release-keys", SERIAL = "unknown", HOST = "localhost", USER = "build", TYPE = "user", TAGS = "release-keys", DISPLAY = "RKQ1";
+  public static final String[] SUPPORTED_ABIS = {"arm64-v8a", "armeabi-v7a"}; public static final String CPU_ABI = "arm64-v8a";
+  public static class VERSION { public static final int SDK_INT = 30; public static final String RELEASE = "11", INCREMENTAL = "1", CODENAME = "REL"; }
+  public static class VERSION_CODES { public static final int KITKAT=19, LOLLIPOP=21, M=23, N=24, O=26, P=28, Q=29, R=30, S=31; } }

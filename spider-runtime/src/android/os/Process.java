@@ -1,0 +1,2 @@
+package android.os;
+public class Process { public static int myPid() { return (int) ProcessHandle.current().pid(); } public static int myUid() { return 10000; } public static int myTid() { return (int) Thread.currentThread().getId(); } public static void killProcess(int p) {} public static void setThreadPriority(int p) {} }

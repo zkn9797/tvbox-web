@@ -1,0 +1,2 @@
+package android.widget;
+public class ProgressBar extends android.view.View { public ProgressBar(android.content.Context c) { super(c); } public ProgressBar(android.content.Context c, Object a, int s) { super(c); } public void setMax(int m) {} public void setProgress(int p) {} public void setIndeterminate(boolean b) {} public int getProgress() { return 0; } }

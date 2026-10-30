@@ -1,0 +1,2 @@
+package android.graphics;
+public class Typeface { public static final int NORMAL=0, BOLD=1, ITALIC=2, BOLD_ITALIC=3; public static final Typeface DEFAULT = new Typeface(), DEFAULT_BOLD = new Typeface(), MONOSPACE = new Typeface(), SANS_SERIF = new Typeface(), SERIF = new Typeface(); public static Typeface create(Typeface f, int s) { return f; } public static Typeface create(String n, int s) { return DEFAULT; } public static Typeface defaultFromStyle(int s) { return DEFAULT; } public int getStyle() { return 0; } public boolean isBold() { return false; } }

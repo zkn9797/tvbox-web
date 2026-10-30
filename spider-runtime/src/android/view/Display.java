@@ -1,0 +1,2 @@
+package android.view;
+public class Display { public int getWidth() { return 1920; } public int getHeight() { return 1080; } public void getMetrics(android.util.DisplayMetrics m) {} public void getRealMetrics(android.util.DisplayMetrics m) {} public void getSize(android.graphics.Point p) { p.x = 1920; p.y = 1080; } }

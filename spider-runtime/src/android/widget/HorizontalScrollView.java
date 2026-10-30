@@ -1,0 +1,2 @@
+package android.widget;
+public class HorizontalScrollView extends FrameLayout { public HorizontalScrollView(android.content.Context c) { super(c); } public void smoothScrollTo(int x, int y) {} public void scrollTo(int x, int y) {} }

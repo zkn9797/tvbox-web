@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#14161a">
+<meta name="x5-orientation" content="portrait">
+<title>TVBox Web</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header id="top">
+  <a class="logo" href="#/home">TVBox<span>Web</span></a>
+  <select id="repoSel" title="配置仓库"></select>
+  <form id="searchForm" autocomplete="off"><input id="searchInput" type="search" placeholder="搜索影视…" enterkeyhint="search"><button type="submit" aria-label="搜索">🔍</button></form>
+  <nav id="navLinks">
+    <a href="#/home">首页</a><a href="#/history">历史</a><a href="#/fav">收藏</a>
+    <a href="javascript:void 0" id="menuBtn" aria-label="菜单">☰</a>
+  </nav>
+  <div id="menu" class="hidden">
+    <div id="menuUser"></div>
+    <a href="javascript:void 0" id="pwBtn">修改密码</a>
+    <a href="javascript:void 0" id="logoutBtn">退出登录</a>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<!-- login -->
+<div id="loginView" class="modal hidden">
+  <form id="loginForm" class="card">
+    <h2>登录 TVBox Web</h2>
+    <input name="username" placeholder="用户名" autocomplete="username" required>
+    <input name="password" type="password" placeholder="密码" autocomplete="current-password" required>
+    <button type="submit">登录</button>
+    <p class="err" id="loginErr"></p>
+  </form>
+</div>
+
+<div id="pwView" class="modal hidden">
+  <form id="pwForm" class="card">
+    <h2>修改密码</h2>
+    <input name="old" type="password" placeholder="原密码" required>
+    <input name="password" type="password" placeholder="新密码（至少6位）" required minlength="6">
+    <div class="row"><button type="submit">保存</button><button type="button" class="ghost" data-close>取消</button></div>
+    <p class="err" id="pwErr"></p>
+  </form>
+</div>
+
+<div id="toast"></div>
+<script src="/static/hls.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+package android.content;
+public class ComponentName { String p, c; public ComponentName(String p, String c) { this.p = p; this.c = c; } public String getClassName() { return c; } public String getPackageName() { return p; } }

@@ -1,0 +1,2 @@
+package android.view;
+public class ViewTreeObserver { public interface OnGlobalLayoutListener { void onGlobalLayout(); } public interface OnPreDrawListener { boolean onPreDraw(); } public void addOnGlobalLayoutListener(OnGlobalLayoutListener l) {} public void removeOnGlobalLayoutListener(OnGlobalLayoutListener l) {} public void removeGlobalOnLayoutListener(OnGlobalLayoutListener l) {} public void addOnPreDrawListener(OnPreDrawListener l) {} public void removeOnPreDrawListener(OnPreDrawListener l) {} public boolean isAlive() { return true; } }

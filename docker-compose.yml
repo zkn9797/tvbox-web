@@ -1,0 +1,28 @@
+# One container: web UI + Android jar spider runtime + headless-Chromium sniffer.
+#   docker compose up -d --build
+# Mainland China: REG=docker.1ms.run/library/ APT_MIRROR=mirrors.aliyun.com NPM_REGISTRY=https://registry.npmmirror.com docker compose up -d --build
+# Smaller image without the browser sniffer: WITH_BROWSER=0
+services:
+  tvbox-web:
+    image: tvbox-web:latest
+    build:
+      context: .
+      args:
+        REG: ${REG:-}
+        APT_MIRROR: ${APT_MIRROR:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+        WITH_BROWSER: ${WITH_BROWSER:-1}
+    container_name: tvbox-web
+    restart: unless-stopped
+    ports:
+      - "8686:8686"
+    volumes:
+      - /opt/docker-data/tvbox-web:/data
+    shm_size: 128m
+    mem_limit: 896m
+    cpus: 2
+    environment:
+      - TZ=Asia/Shanghai
+      # - ENABLE_SNIFFER=0          # turn off the headless browser
+      # - ENABLE_SPIDER=0           # turn off jar spiders
+      # - UPSTREAM_PROXY=http://172.17.0.1:7890   # optional upstream proxy (off by default)

@@ -1,0 +1,2 @@
+package android.view;
+public interface WindowManager { Display getDefaultDisplay(); class LayoutParams extends ViewGroup.LayoutParams { public int x, y, gravity, flags, type, format, softInputMode; public float alpha = 1, dimAmount; public LayoutParams() { super(-1, -1); } public LayoutParams(int w, int h) { super(w, h); } } }

@@ -1,0 +1,2 @@
+package android.content.res;
+public class Configuration { public static final int UI_MODE_TYPE_MASK = 15, UI_MODE_TYPE_TELEVISION = 4, ORIENTATION_LANDSCAPE = 2; public int uiMode = 4, orientation = 2, screenWidthDp = 960, screenHeightDp = 540; }

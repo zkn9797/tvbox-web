@@ -1,0 +1,2 @@
+package android.text.format;
+public class Formatter { public static String formatIpAddress(int ip) { return (ip & 255) + "." + ((ip >> 8) & 255) + "." + ((ip >> 16) & 255) + "." + ((ip >> 24) & 255); } public static String formatFileSize(android.content.Context c, long n) { return n < 1024 ? n + " B" : String.format("%.1f %s", n / Math.pow(1024, (int) (Math.log(n) / Math.log(1024))), "KMGTPE".charAt((int) (Math.log(n) / Math.log(1024)) - 1) + "B"); } public static String formatShortFileSize(android.content.Context c, long n) { return formatFileSize(c, n); } }

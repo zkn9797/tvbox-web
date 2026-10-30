@@ -1,0 +1,2 @@
+package android.content.res;
+public class ColorStateList { int c; public ColorStateList(int[][] s, int[] c) { this.c = c.length > 0 ? c[0] : 0; } public static ColorStateList valueOf(int c) { return new ColorStateList(new int[][]{{}}, new int[]{c}); } public int getDefaultColor() { return c; } public int getColorForState(int[] s, int d) { return c; } }

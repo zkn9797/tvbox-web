@@ -1,0 +1,2 @@
+package android.widget;
+public class Toast { public static final int LENGTH_SHORT=0, LENGTH_LONG=1; public static Toast makeText(android.content.Context c, CharSequence t, int d) { android.util.Log.i("Toast", String.valueOf(t)); return new Toast(); } public void show() {} public void setGravity(int g, int x, int y) {} public void cancel() {} }

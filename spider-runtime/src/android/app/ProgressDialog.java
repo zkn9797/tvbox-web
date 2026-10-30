@@ -1,0 +1,2 @@
+package android.app;
+public class ProgressDialog extends AlertDialog { public static final int STYLE_SPINNER=0, STYLE_HORIZONTAL=1; public ProgressDialog(android.content.Context c) { super(c); } public void setMessage(CharSequence m) {} public void setMax(int m) {} public void setProgress(int p) {} public void setProgressStyle(int s) {} public void setIndeterminate(boolean b) {} }

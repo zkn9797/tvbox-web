@@ -1,0 +1,8 @@
+data
+node_modules
+**/node_modules
+*.md
+test
+spider-runtime/src
+spider-runtime/build/classes
+spider-runtime/build.sh

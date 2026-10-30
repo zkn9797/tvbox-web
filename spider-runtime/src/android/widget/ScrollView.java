@@ -1,0 +1,2 @@
+package android.widget;
+public class ScrollView extends FrameLayout { public ScrollView(android.content.Context c) { super(c); } public void smoothScrollTo(int x, int y) {} public void scrollTo(int x, int y) {} public void setFillViewport(boolean b) {} public void fullScroll(int d) {} }

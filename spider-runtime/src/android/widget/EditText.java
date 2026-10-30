@@ -1,0 +1,2 @@
+package android.widget;
+public class EditText extends TextView { public EditText(android.content.Context c) { super(c); } public void setInputType(int t) {} public void setSelection(int i) {} public void selectAll() {} @Override public android.text.Editable getText() { return new android.text.EditableString(super.getText()); } public void setImeOptions(int o) {} public void setOnEditorActionListener(Object l) {} }

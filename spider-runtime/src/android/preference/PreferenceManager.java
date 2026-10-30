@@ -1,0 +1,2 @@
+package android.preference;
+public class PreferenceManager { public static android.content.SharedPreferences getDefaultSharedPreferences(android.content.Context c) { return c.getSharedPreferences(c.getPackageName() + "_preferences", 0); } }

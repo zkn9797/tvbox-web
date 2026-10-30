@@ -1,0 +1,2 @@
+package android.graphics.drawable;
+public class ColorDrawable extends Drawable { int c; public ColorDrawable() {} public ColorDrawable(int c) { this.c = c; } public void setColor(int c) { this.c = c; } public int getColor() { return c; } }

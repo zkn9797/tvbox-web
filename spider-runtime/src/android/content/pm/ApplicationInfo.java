@@ -1,0 +1,2 @@
+package android.content.pm;
+public class ApplicationInfo extends PackageItemInfo { public int targetSdkVersion = 30, flags = 0; public String dataDir = "/data", nativeLibraryDir = "/data/lib", sourceDir = "/data/base.apk"; }

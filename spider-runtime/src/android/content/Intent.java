@@ -1,0 +1,7 @@
+package android.content;
+public class Intent { public static final int FLAG_ACTIVITY_NEW_TASK = 0x10000000; public static final String ACTION_VIEW = "android.intent.action.VIEW"; public Intent setComponent(ComponentName c) { return this; } public static Intent createChooser(Intent i, CharSequence t) { return i; }
+  String action; android.net.Uri data; final android.os.Bundle extras = new android.os.Bundle();
+  public Intent() {} public Intent(String a) { action = a; } public Intent(String a, android.net.Uri d) { action = a; data = d; } public Intent(Context c, Class<?> k) {}
+  public Intent setClassName(String p, String c) { return this; } public Intent setData(android.net.Uri u) { data = u; return this; } public Intent setDataAndType(android.net.Uri u, String t) { data = u; return this; }
+  public Intent putExtra(String k, String v) { extras.putString(k, v); return this; } public Intent putExtra(String k, int v) { extras.putInt(k, v); return this; } public Intent addFlags(int f) { return this; } public Intent setFlags(int f) { return this; }
+  public Intent setAction(String a) { action = a; return this; } public Intent setPackage(String p) { return this; } public String getStringExtra(String k) { return extras.getString(k); } }

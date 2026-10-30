@@ -1,0 +1,2 @@
+package android.graphics;
+public class BitmapFactory { public static Bitmap decodeByteArray(byte[] b, int o, int l) { return null; } public static Bitmap decodeStream(java.io.InputStream i) { return null; } public static Bitmap decodeFile(String p) { return null; } }

@@ -1,0 +1,16 @@
+package android.view;
+public class View { protected android.content.Context mContext; Object tag; public View() {} public View(android.content.Context c) { mContext = c; }
+  public static final int VISIBLE=0, INVISIBLE=4, GONE=8;
+  public void setVisibility(int v) {} public int getVisibility() { return VISIBLE; } public android.content.Context getContext() { return mContext; }
+  public void setLayoutParams(ViewGroup.LayoutParams p) {} public ViewGroup.LayoutParams getLayoutParams() { return null; } public ViewParent getParent() { return null; }
+  public boolean post(Runnable r) { return new android.os.Handler().post(r); } public boolean postDelayed(Runnable r, long d) { return new android.os.Handler().postDelayed(r, d); }
+  public boolean removeCallbacks(Runnable r) { return true; }
+  public void setOnClickListener(OnClickListener l) {} public boolean requestFocus() { return true; } public void setFocusable(boolean b) {} public void setBackgroundColor(int c) {}
+  public void setFocusableInTouchMode(boolean b) {} public void setClickable(boolean b) {} public boolean hasFocus() { return false; }
+  public void setOnFocusChangeListener(OnFocusChangeListener l) {} public void setOnKeyListener(OnKeyListener l) {} public void setOnLongClickListener(OnLongClickListener l) {} public void setOnTouchListener(OnTouchListener l) {}
+  public void setPadding(int l, int t, int r, int b) {} public int getPaddingLeft() { return 0; } public int getPaddingTop() { return 0; } public int getPaddingRight() { return 0; } public int getPaddingBottom() { return 0; }
+  public void setTag(Object o) { tag = o; } public Object getTag() { return tag; } public int getWidth() { return 0; } public int getHeight() { return 0; }
+  public View findViewById(int id) { return null; } public android.graphics.drawable.Drawable getBackground() { return null; } public void setBackground(android.graphics.drawable.Drawable d) {} public void setBackgroundDrawable(android.graphics.drawable.Drawable d) {}
+  public android.os.IBinder getWindowToken() { return null; } public void getWindowVisibleDisplayFrame(android.graphics.Rect r) {} public void invalidate() {} public void requestLayout() {} public void setEnabled(boolean b) {} public void setAlpha(float a) {} public ViewTreeObserver getViewTreeObserver() { return new ViewTreeObserver(); } public void setSelected(boolean b) {} public void setMinimumHeight(int h) {} public void setMinimumWidth(int w) {} public void setId(int id) {} public int getId() { return 0; } public void setElevation(float e) {} public void setScaleX(float s) {} public void setScaleY(float s) {} public boolean performClick() { return false; } public void bringToFront() {} public void clearFocus() {}
+  public interface OnClickListener { void onClick(View v); } public interface OnKeyListener { boolean onKey(View v, int k, KeyEvent e); } public interface OnFocusChangeListener { void onFocusChange(View v, boolean f); }
+  public interface OnLongClickListener { boolean onLongClick(View v); } public interface OnTouchListener { boolean onTouch(View v, MotionEvent e); } }

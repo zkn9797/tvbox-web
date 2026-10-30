@@ -1,0 +1,2 @@
+package android.webkit;
+public class CookieManager { static final CookieManager I = new CookieManager(); final java.util.Map<String,String> m = new java.util.HashMap<>(); public static CookieManager getInstance() { return I; } public String getCookie(String u) { return m.get(u); } public void setCookie(String u, String v) { m.put(u, v); } public void flush() {} public void setAcceptCookie(boolean b) {} }

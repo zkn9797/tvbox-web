@@ -1,0 +1,5 @@
+package android.view;
+public class ViewGroup extends View implements ViewParent { public ViewGroup() {} public ViewGroup(android.content.Context c) { super(c); }
+  public void addView(View v) {} public void addView(View v, LayoutParams p) {} public void removeView(View v) {} public void removeAllViews() {} public void addView(View v, int i) {} public void addView(View v, int w, int h) {} public View getChildAt(int i) { return null; } public int getChildCount() { return 0; } public int indexOfChild(View v) { return -1; }
+  public static class LayoutParams { public static final int MATCH_PARENT=-1, WRAP_CONTENT=-2; public int width, height; public LayoutParams(int w, int h) { width = w; height = h; } }
+  public static class MarginLayoutParams extends LayoutParams { public int leftMargin, topMargin, rightMargin, bottomMargin; public MarginLayoutParams(int w, int h) { super(w, h); } } }

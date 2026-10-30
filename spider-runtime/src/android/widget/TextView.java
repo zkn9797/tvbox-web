@@ -1,0 +1,11 @@
+package android.widget;
+public class TextView extends android.view.View { CharSequence text = ""; int color, gravity; float size = 14;
+  public TextView(android.content.Context c) { super(c); } public void setText(CharSequence t) { text = t == null ? "" : t; } public void setText(int r) {} public CharSequence getText() { return text; }
+  public void setTextSize(float s) { size = s; } public void setTextSize(int u, float s) { size = s; } public float getTextSize() { return size; } public void setTextColor(int c) { color = c; } public void setTextColor(android.content.res.ColorStateList c) {}
+  public int getCurrentTextColor() { return color; } public android.content.res.ColorStateList getTextColors() { return android.content.res.ColorStateList.valueOf(color); }
+  public void setGravity(int g) { gravity = g; } public int getGravity() { return gravity; } public void setSingleLine(boolean b) {} public void setSingleLine() {} public void setMaxLines(int n) {} public void setLines(int n) {} public void setHint(CharSequence h) {} public void setHintTextColor(int c) {}
+  public void setTypeface(android.graphics.Typeface t) {} public void setTypeface(android.graphics.Typeface t, int s) {} public android.graphics.Typeface getTypeface() { return android.graphics.Typeface.DEFAULT; }
+  public void setEllipsize(android.text.TextUtils.TruncateAt e) {} public void setMarqueeRepeatLimit(int n) {} public void setAllCaps(boolean b) {} public void setCompoundDrawablePadding(int p) {}
+  public void setCompoundDrawables(android.graphics.drawable.Drawable l, android.graphics.drawable.Drawable t, android.graphics.drawable.Drawable r, android.graphics.drawable.Drawable b) {}
+  public void setCompoundDrawablesWithIntrinsicBounds(android.graphics.drawable.Drawable l, android.graphics.drawable.Drawable t, android.graphics.drawable.Drawable r, android.graphics.drawable.Drawable b) {}
+  public void setLineSpacing(float a, float m) {} public void setSelected(boolean b) {} public void setMovementMethod(Object m) {} public void setTextIsSelectable(boolean b) {} public void addTextChangedListener(Object w) {} }
