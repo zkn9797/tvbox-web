@@ -4,6 +4,7 @@ import java.io.*; import java.nio.*; import java.nio.file.*; import java.securit
 /** Lets Android NDK .so files (bionic) load on glibc: neutralise bionic symbol versioning (DT_VERSYM/VERNEED)
  *  and resolve Android library names. Calls are injected in front of System.load/loadLibrary by NativeLoader. */
 public final class Native {
+  public static void noop() { }
   static File dir() { File d = new File(System.getenv().getOrDefault("DATA_DIR", "/data"), "native"); d.mkdirs(); return d; }
 
   // The JVM refuses to load one native library file into two class loaders ("already loaded in another

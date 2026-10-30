@@ -16,7 +16,7 @@ public class NativeLoader extends URLClassLoader {
     }
     byte[] b;
     try (InputStream in = u.openStream()) { b = in.readAllBytes(); } catch (IOException e) { throw new ClassNotFoundException(name, e); }
-    if (contains(b, "loadLibrary") || contains(b, "java/lang/System") || contains(b, "java/lang/Runtime") || contains(b, "crawler/Spider") || contains(b, "$d2j$hex$")) { try { b = rewrite(b); } catch (Throwable t) { /* keep original */ } }
+    if (contains(b, "loadLibrary") || contains(b, "java/lang/System") || contains(b, "java/lang/Runtime") || contains(b, "crawler/Spider") || contains(b, "$d2j$hex$") || contains(b, "danmuStart")) { try { b = rewrite(b); } catch (Throwable t) { /* keep original */ } }
     return defineClass(name, b, 0, b.length);
   }
   static int indexOf(byte[] b, byte[] p) { outer: for (int i = 0; i + p.length <= b.length; i++) { for (int j = 0; j < p.length; j++) if (b[i + j] != p[j]) continue outer; return i; } return -1; }
@@ -45,6 +45,8 @@ public class NativeLoader extends URLClassLoader {
               if ("load".equals(name)) { hit[0] = true; super.visitMethodInsn(Opcodes.INVOKESTATIC, "tvbox/runtime/Native", "fix", "(Ljava/lang/String;)Ljava/lang/String;", false); super.visitMethodInsn(op, "java/lang/System", "load", desc, false); return; }
               if ("loadLibrary".equals(name)) { hit[0] = true; super.visitMethodInsn(Opcodes.INVOKESTATIC, "tvbox/runtime/Native", "libPath", "(Ljava/lang/String;)Ljava/lang/String;", false); super.visitMethodInsn(op, "java/lang/System", "load", desc, false); return; }
             }
+            // 饭太硬 guard: inner dex calls DexNative.danmuStart(), which the outer bridge class lacks (danmaku only) -> no-op
+            if (op == Opcodes.INVOKESTATIC && "com/github/catvod/spider/DexNative".equals(owner) && "danmuStart".equals(name) && "()V".equals(desc)) { hit[0] = true; super.visitMethodInsn(op, "tvbox/runtime/Native", "noop", "()V", false); return; }
             // newer CatVod API: static Spider.client()/safeDns() -> runtime equivalents
             if (op == Opcodes.INVOKESTATIC && "com/github/catvod/crawler/Spider".equals(owner) && "client".equals(name) && "()Lokhttp3/OkHttpClient;".equals(desc)) { hit[0] = true; super.visitMethodInsn(op, "tvbox/runtime/Net", "client", desc, false); return; }
             super.visitMethodInsn(op, owner, name, desc, itf);
