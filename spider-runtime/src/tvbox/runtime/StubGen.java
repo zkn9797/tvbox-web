@@ -5,7 +5,7 @@ import java.io.*; import java.net.*; import java.util.*; import java.util.zip.*;
  *  return defaults, so UI-only code paths (config dialogs, QR popups, WebView setup) run harmlessly and bytecode
  *  verification of the spider classes succeeds. */
 final class StubGen {
-  static final String[] PREFIXES = { "android/", "androidx/", "dalvik/", "com/tencent/smtt/", "com/whl/quickjs/", "com/google/android/", "org/slf4j/impl/", "com/thegrizzlylabs/sardineandroid/" };
+  static final String[] PREFIXES = { "android/", "androidx/", "dalvik/", "com/tencent/smtt/", "com/whl/quickjs/", "com/google/android/", "com/thegrizzlylabs/sardineandroid/" };
   static boolean eligible(String in) { for (String p : PREFIXES) if (in.startsWith(p)) return true; return false; }
   // real Android superclasses for types commonly referenced by spiders
   static final Map<String, String> SUPER = new HashMap<>();

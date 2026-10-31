@@ -18,5 +18,5 @@ public class AppContext extends android.app.Application {
   @Override public InputStream openFileInput(String n) throws FileNotFoundException { return new FileInputStream(new File(getFilesDir(), n)); }
   @Override public FileOutputStream openFileOutput(String n, int m) throws FileNotFoundException { return new FileOutputStream(new File(getFilesDir(), n), (m & MODE_APPEND) != 0); }
   @Override public android.content.res.AssetManager getAssets() { return new android.content.res.AssetManager(); }
-  @Override public ClassLoader getClassLoader() { return Thread.currentThread().getContextClassLoader(); } @Override public void sendBroadcast(Intent i) { }
+  @Override public ClassLoader getClassLoader() { return AppContext.class.getClassLoader(); } // like Android: the host app loader, never a spider jar (guards pass it as the parent of their decrypted dex) @Override public void sendBroadcast(Intent i) { }
 }
