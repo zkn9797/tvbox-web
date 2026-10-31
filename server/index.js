@@ -315,11 +315,11 @@ function jarProxy(req, res, rest) {
     const ct = ur.headers['content-type'] || '';
     const hdr = { 'Access-Control-Allow-Origin': '*' };
     for (const k of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'location']) if (ur.headers[k]) hdr[k] = ur.headers[k];
-    if (hdr.location) hdr.location = hdr.location.replace(/^https?:\/\/(127\.0\.0\.1|localhost):9978\//, '/jp/');
+    if (hdr.location) hdr.location = hdr.location.replace(/^https?:\/\/(127\.0\.0\.1|localhost):99(?:78|75)\//, '/jp/');
     if (/mpegurl/i.test(ct)) {
       // rewrite nested local-proxy links inside playlists
       const chunks = []; ur.on('data', c => chunks.push(c)); ur.on('end', () => {
-        const body = Buffer.concat(chunks).toString('utf8').replace(/https?:\/\/(127\.0\.0\.1|localhost):9978\//g, '/jp/');
+        const body = Buffer.concat(chunks).toString('utf8').replace(/https?:\/\/(127\.0\.0\.1|localhost):99(?:78|75)\//g, '/jp/');
         delete hdr['content-length']; res.writeHead(ur.statusCode, hdr); res.end(body);
       });
       return;

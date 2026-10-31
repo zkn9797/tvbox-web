@@ -27,6 +27,11 @@ public class Main {
     s.createContext("/proxy", Main::proxy);
     s.start();
     System.err.println("spider-runtime listening on :" + PORT);
+    // some spider jars hard-code the host's local proxy as 127.0.0.1:9975 (TVBox forks); serve /proxy there too
+    int alt = Integer.parseInt(System.getenv().getOrDefault("PROXY_ALT_PORT", "9975"));
+    if (alt > 0 && alt != PORT) try { HttpServer altS = HttpServer.create(new InetSocketAddress("127.0.0.1", alt), 64);
+      altS.setExecutor(new ThreadPoolExecutor(2, 16, 60, TimeUnit.SECONDS, new SynchronousQueue<>(), new ThreadPoolExecutor.CallerRunsPolicy()));
+      altS.createContext("/proxy", Main::proxy); altS.start(); } catch (Exception e) { System.err.println("[proxy] alt port " + alt + ": " + e); }
     ScheduledExecutorService sch = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "idle"); t.setDaemon(true); return t; });
     sch.scheduleWithFixedDelay(() -> {
       if (!jm.jars.isEmpty() && System.currentTimeMillis() - lastUse > IDLE_MS) { System.err.println("[idle] unloading spiders"); jm.unloadAll(); System.gc(); Native.sweep(); }

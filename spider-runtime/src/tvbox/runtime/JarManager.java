@@ -116,7 +116,12 @@ public class JarManager {
       Thread.currentThread().setContextClassLoader(l.cl);
       try {
         Class<?> init = l.cl.loadClass("com.github.catvod.spider.Init");
-        try { init.getMethod("init", android.content.Context.class).invoke(null, ctx); } catch (NoSuchMethodException ignore) { }
+        // dex2c jars: the first native-constructor call can run before the stub library's natives are bindable
+        // (UnsatisfiedLinkError on $init$); Android never sees this, so retry like a second host start would.
+        for (int attempt = 0; ; attempt++) {
+          try { init.getMethod("init", android.content.Context.class).invoke(null, ctx); break; } catch (NoSuchMethodException ignore) { break; }
+          catch (java.lang.reflect.InvocationTargetException ite) { if (attempt < 2 && rootT(ite) instanceof UnsatisfiedLinkError) { System.err.println("[jar] Init.init retry after " + root(ite)); continue; } throw ite; }
+        }
       } catch (ClassNotFoundException ignore) {
       } catch (Throwable t) { System.err.println("[jar] Init.init failed: " + root(t)); }
       finally { Thread.currentThread().setContextClassLoader(prev); }
@@ -149,7 +154,8 @@ public class JarManager {
       Thread.currentThread().setContextClassLoader(l.cl);
       try {
         guardFixup(l.cl);
-        s = (Spider) l.cl.loadClass(cls).getDeclaredConstructor().newInstance();
+        try { s = (Spider) l.cl.loadClass(cls).getDeclaredConstructor().newInstance(); }
+        catch (java.lang.reflect.InvocationTargetException ite) { if (!(rootT(ite) instanceof UnsatisfiedLinkError)) throw ite; System.err.println("[jar] spider ctor retry after " + root(ite)); s = (Spider) l.cl.loadClass(cls).getDeclaredConstructor().newInstance(); }
         guardFixup(l.cl);
         try { s.siteKey = siteKey; } catch (Throwable ignore) { }
         s.init(ctx, ext == null ? "" : ext);
@@ -205,4 +211,5 @@ public class JarManager {
   }
 
   static String root(Throwable t) { while (t.getCause() != null && t.getCause() != t) t = t.getCause(); return t.toString(); }
+  static Throwable rootT(Throwable t) { while (t.getCause() != null && t.getCause() != t) t = t.getCause(); return t; }
 }

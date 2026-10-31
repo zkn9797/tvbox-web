@@ -206,7 +206,7 @@ async function resolve({ cfg, site, flag, id, playRes, client }) {
     }
   }
   // jar spiders hand out TVBox local-proxy URLs (127.0.0.1:9978/proxy?...): route via our /jp/ endpoint
-  if (/^https?:\/\/(127\.0\.0\.1|localhost):9978\//.test(url)) url = '/jp/' + url.replace(/^https?:\/\/[^/]+\//, '');
+  if (/^https?:\/\/(127\.0\.0\.1|localhost):99(?:78|75)\//.test(url)) url = '/jp/' + url.replace(/^https?:\/\/[^/]+\//, '');
   if (!/^https?:/.test(url) && !url.startsWith('/')) throw new Error('无效播放地址');
   if (url.startsWith('/')) return { url, type: mediaType(url), mode: 'local' };
 

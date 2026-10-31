@@ -41,7 +41,7 @@ COPY server ./server
 COPY public ./public
 COPY assets ./assets
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && mkdir -p /system/bin && ln -sf /bin/sh /system/bin/sh  # spiders exec helper binaries via /system/bin/sh
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 NODE_ENV=production DATA_DIR=/data PORT=8686 TZ=Asia/Shanghai \
     NODE_TLS_REJECT_UNAUTHORIZED=0 JS_WORKERS=2 SEARCH_CONCURRENCY=5 \
     SPIDER_RUNTIME=http://127.0.0.1:9978 SNIFFER_URL=http://127.0.0.1:9980 \
