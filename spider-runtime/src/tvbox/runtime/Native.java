@@ -5,6 +5,37 @@ import java.io.*; import java.nio.*; import java.nio.file.*; import java.securit
  *  and resolve Android library names. Calls are injected in front of System.load/loadLibrary by NativeLoader. */
 public final class Native {
   public static void noop() { }
+
+  // ---- native constructors of dex2c libraries (see Frames.nativeCtors and android-shim bindCtors) ----
+  static native int bindCtors(String lib, Class<?> cls, String[] syms, String[] descs);
+  static volatile int shim; // 0 unknown, 1 loaded, -1 unavailable
+  static boolean shim() {
+    if (shim == 0) synchronized (Native.class) { if (shim == 0) { shim = -1;
+      for (String d : System.getenv().getOrDefault("LD_LIBRARY_PATH", "").split(":")) { File f = new File(d, "libc.so"); if (d.isEmpty() || !f.isFile()) continue;
+        try { System.load(f.getAbsolutePath()); shim = 1; break; } catch (Throwable t) { System.err.println("[native] shim load failed: " + t); } } } }
+    return shim == 1;
+  }
+  static final Set<String> DBG_CTOR = Collections.synchronizedSet(new HashSet<>());
+  static final Map<Class<?>, Boolean> BOUND = Collections.synchronizedMap(new WeakHashMap<>());
+  static String mangle(String s) { StringBuilder b = new StringBuilder();
+    for (char ch : s.toCharArray()) { if (ch == '/' || ch == '.') b.append('_'); else if (ch == '_') b.append("_1"); else if (ch == ';') b.append("_2"); else if (ch == '[') b.append("_3");
+      else if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')) b.append(ch); else b.append(String.format("_0%04x", (int) ch)); }
+    return b.toString(); }
+  /** called by rewritten constructors before $init$: bind it to the library's exported <init> implementation */
+  public static void bindCtor(Class<?> c) {
+    if (BOUND.containsKey(c)) return;
+    if (!shim()) { if (DBG_CTOR.add("shim")) System.err.println("[native] android-shim not loadable; native constructors unbound"); return; }
+    List<String> syms = new ArrayList<>(), descs = new ArrayList<>();
+    String base = "Java_" + mangle(c.getName()) + "_" + mangle("<init>");
+    for (java.lang.reflect.Method m : c.getDeclaredMethods()) if (m.getName().equals("$init$")) {
+      String d = org.objectweb.asm.Type.getMethodDescriptor(m); String args = d.substring(1, d.indexOf(')'));
+      syms.add(base + "\n" + base + "__" + mangle(args)); descs.add(d); }
+    if (syms.isEmpty()) { BOUND.put(c, true); return; }
+    Set<String> libs = new LinkedHashSet<>(); synchronized (Native.class) { for (Map.Entry<String, WeakHashMap<ClassLoader, String>> e : OWNERS.entrySet()) { libs.add(e.getKey()); libs.addAll(e.getValue().values()); } }
+    int ok = 0; for (String l : libs) { try { ok += bindCtors(l, c, syms.toArray(new String[0]), descs.toArray(new String[0])); } catch (Throwable t) { System.err.println("[native] bindCtors: " + t); return; } if (ok >= syms.size()) break; }
+    if (ok > 0) { BOUND.put(c, true); System.err.println("[native] bound " + ok + " native constructor(s) of " + c.getName()); }
+    else if (DBG_CTOR.add(c.getName())) System.err.println("[native] no native constructor found for " + c.getName() + " in " + libs + " (" + syms.get(0).replace('\n', ' ') + ")");
+  }
   static File dir() { File d = new File(System.getenv().getOrDefault("DATA_DIR", "/data"), "native"); d.mkdirs(); return d; }
 
   // The JVM refuses to load one native library file into two class loaders ("already loaded in another

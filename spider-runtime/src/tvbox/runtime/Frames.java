@@ -38,6 +38,7 @@ final class Frames {
     ClassReader cr = new ClassReader(b);
     ClassNode cn = new ClassNode(); cr.accept(cn, ClassReader.SKIP_FRAMES);
     boolean itf = (cn.access & Opcodes.ACC_INTERFACE) != 0;
+    nativeCtors(cn);
     needV8 = false;
     for (MethodNode m : cn.methods) if (m.instructions.size() > 0) try { patchMissing(m); } catch (Throwable t) { if (DBG) System.err.println("[frames] missing " + cn.name + "." + m.name + ": " + t); }
     for (MethodNode m : cn.methods) {
@@ -89,6 +90,28 @@ final class Frames {
     switch (t.getSort()) { case Type.VOID: break; case Type.LONG: l.add(new InsnNode(Opcodes.LCONST_0)); break; case Type.FLOAT: l.add(new InsnNode(Opcodes.FCONST_0)); break;
       case Type.DOUBLE: l.add(new InsnNode(Opcodes.DCONST_0)); break; case Type.OBJECT: case Type.ARRAY: if ("Ljava/lang/String;".equals(t.getDescriptor())) l.add(new LdcInsnNode("")); else l.add(new InsnNode(Opcodes.ACONST_NULL)); break;
       default: l.add(new InsnNode(Opcodes.ICONST_0)); }
+  }
+  /** VMP-protected dex has `native <init>` (ART allows it, the JVM rejects the class). Becomes a real constructor that runs
+   *  the superclass's no-arg constructor and then a private native $init$ with the same arguments; the android-shim JNI hook
+   *  renames the library's "<init>" registration to "$init$". */
+  static void nativeCtors(ClassNode cn) {
+    if ((cn.access & Opcodes.ACC_INTERFACE) != 0 || cn.superName == null) return;
+    List<MethodNode> add = new ArrayList<>();
+    for (MethodNode m : cn.methods) {
+      if (!"<init>".equals(m.name) || (m.access & Opcodes.ACC_NATIVE) == 0) continue;
+      m.access &= ~(Opcodes.ACC_NATIVE | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL | Opcodes.ACC_SYNCHRONIZED | Opcodes.ACC_ABSTRACT);
+      m.instructions.clear(); m.tryCatchBlocks.clear();
+      m.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0));
+      m.instructions.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, cn.superName, "<init>", "()V", false));
+      m.instructions.add(new LdcInsnNode(Type.getObjectType(cn.name)));
+      m.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "tvbox/runtime/Native", "bindCtor", "(Ljava/lang/Class;)V", false));
+      m.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0)); int slot = 1;
+      for (Type t : Type.getArgumentTypes(m.desc)) { m.instructions.add(new VarInsnNode(t.getOpcode(Opcodes.ILOAD), slot)); slot += t.getSize(); }
+      m.instructions.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, cn.name, "$init$", m.desc, false));
+      m.instructions.add(new InsnNode(Opcodes.RETURN)); m.maxStack = slot + 1; m.maxLocals = slot;
+      add.add(new MethodNode(Opcodes.ACC_PRIVATE | Opcodes.ACC_NATIVE, "$init$", m.desc, null, null));
+    }
+    cn.methods.addAll(add);
   }
   boolean needV8; // set when an interface Methodref needs class file version 52+
   void patchMissing(MethodNode m) {
