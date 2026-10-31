@@ -43,7 +43,7 @@ function supported(site) {
   return false;
 }
 
-async function jarCall(repoCfg, site, method, args, timeout = 30000) {
+async function jarCall(repoCfg, site, method, args, timeout = 45000) {
   const base = runtimeUrl();
   const r = await httpFetch(base + '/call', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Runtime-Token': runtimeToken() }, timeout,
@@ -75,7 +75,7 @@ async function rawCall(repoCfg, siteId, site, method, args) {
   }
   if (site.kind === 'csp' && runtimeUrl()) {
     const a = method === 'category' ? [args[0], args[1], args[2], args[3] || {}] : method === 'play' ? [args[0], args[1], repoCfg.flags || []] : args;
-    return jarCall(repoCfg, site, method, a, method === 'home' ? 60000 : 30000);
+    return jarCall(repoCfg, site, method, a, method === 'home' ? 60000 : 45000);
   }
   throw new Error(`暂不支持此类型源 (${site.kind})`);
 }

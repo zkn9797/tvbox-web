@@ -50,7 +50,7 @@ ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 NODE_ENV=production DATA_DIR=/data PORT=8686 TZ=
     SPIDER_RUNTIME=http://127.0.0.1:9978 SNIFFER_URL=http://127.0.0.1:9980 \
     ENABLE_SPIDER=1 ENABLE_SNIFFER=1 \
     CHROMIUM_PATH=/usr/bin/chromium IDLE_CLOSE_S=120 MAX_PAGES=2 \
-    IDLE_UNLOAD_MIN=10 CALL_TIMEOUT_S=25 \
+    IDLE_UNLOAD_MIN=10 CALL_TIMEOUT_S=40 \
     JAVA_OPTS="-Xmx320m -Xdump:none -Xdump:exit:events=systhrow,filter=java/lang/OutOfMemoryError -Xms16m -Xss320k -Xtune:virtualized -XX:+IdleTuningGcOnIdle -XX:+IdleTuningCompactOnIdle -XX:IdleTuningMinIdleWaitTime=60 -Xshareclasses:name=tvbox,cacheDir=/data/spider/scc,nonfatal -Xscmx40m -Dfile.encoding=UTF-8"
 EXPOSE 8686
 VOLUME ["/data"]

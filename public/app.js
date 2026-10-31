@@ -444,7 +444,7 @@
     $('#bRate').onchange = function () { video.playbackRate = Number(this.value); };
 
     function loadDetail(site, id) {
-      return api('/api/detail?' + qs({ repo: P.repo, site: site, id: id }), { timeout: 30000 }).then(function (j) {
+      return api('/api/detail?' + qs({ repo: P.repo, site: site, id: id }), { timeout: 50000 }).then(function (j) {
         var v = j.list && j.list[0]; if (!v) throw new Error('详情为空');
         var lines = splitPlay(v); if (!lines.length) throw new Error('没有播放列表');
         return { vod: v, lines: lines };
@@ -569,7 +569,7 @@
       msg('解析中…'); $('#srcinfo').textContent = siteName(P.site) + ' · ' + line.flag;
       $('#lineInfo').textContent = '';
       var t0 = Date.now();
-      return api('/api/play?' + qs({ repo: P.repo, site: P.site, flag: line.flag, id: ep.url, native: useNativeHls() && IS_IOS ? 1 : '', https: location.protocol === 'https:' ? 1 : '', proxy: forceProxy || preferProxy() ? 1 : '' }), { timeout: 30000 }).then(function (src) {
+      return api('/api/play?' + qs({ repo: P.repo, site: P.site, flag: line.flag, id: ep.url, native: useNativeHls() && IS_IOS ? 1 : '', https: location.protocol === 'https:' ? 1 : '', proxy: forceProxy || preferProxy() ? 1 : '' }), { timeout: 50000 }).then(function (src) {
         if (token !== P.playToken) return;
         $('#lineInfo').textContent = (src.mode === 'direct' ? '直连' : src.mode === 'proxy-m3u8' ? '代理索引' : src.mode === 'proxy' ? '代理' : '') + ' · ' + (Date.now() - t0) + 'ms';
         msg('加载视频…');
