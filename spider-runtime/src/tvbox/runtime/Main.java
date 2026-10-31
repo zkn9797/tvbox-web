@@ -119,8 +119,15 @@ public class Main {
     String q = ex.getRequestURI().getRawQuery();
     if (q != null) for (String kv : q.split("&")) { int i = kv.indexOf('='); String k = URLDecoder.decode(i < 0 ? kv : kv.substring(0, i), "UTF-8"); params.put(k, i < 0 ? "" : URLDecoder.decode(kv.substring(i + 1), "UTF-8")); }
     for (Map.Entry<String, List<String>> h : ex.getRequestHeaders().entrySet()) if (h.getKey().equalsIgnoreCase("range")) params.put("range", h.getValue().get(0));
+    boolean push = "push".equals(params.get("do"));
+    if (push && "POST".equalsIgnoreCase(ex.getRequestMethod())) { // TVBox host: form fields of /proxy?do=push go to Proxy.processPush
+      String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+      for (String kv : body.split("&")) { if (kv.isEmpty()) continue; int i = kv.indexOf('='); params.put(URLDecoder.decode(i < 0 ? kv : kv.substring(0, i), "UTF-8"), i < 0 ? "" : URLDecoder.decode(kv.substring(i + 1), "UTF-8")); }
+    }
     try {
-      Object[] r = jm.proxy(params);
+      Object[] r = push ? jm.push(params) : null;
+      if (push && r == null) { send(ex, 404, "text/plain; charset=utf-8", "没有已加载的 jar 提供配置页：先在前台打开一次该配置里的任意站点".getBytes(StandardCharsets.UTF_8)); return; }
+      if (r == null) r = jm.proxy(params);
       if (r == null) { send(ex, 404, "text/plain", "no proxy".getBytes()); return; }
       int code = r[0] instanceof Number ? ((Number) r[0]).intValue() : 200;
       String mime = r[1] == null ? "application/octet-stream" : r[1].toString();

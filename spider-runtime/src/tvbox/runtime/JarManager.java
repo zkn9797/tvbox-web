@@ -176,6 +176,23 @@ public class JarManager {
     }
   }
 
+  /** TVBox host's /proxy?do=push: jars with a Proxy.processPush(Map) serve their own config page (cloud-drive cookies etc.) */
+  static final boolean DEBUG_PUSH = false;
+  public Object[] push(Map<String, String> params) throws Exception {
+    if (DEBUG_PUSH) System.err.println("[push] jars=" + jars.keySet() + " inner=" + INNER.size());
+    List<ClassLoader> cls = new ArrayList<>(); if (lastJar != null && jars.get(lastJar) != null) cls.add(jars.get(lastJar).cl);
+    for (Loaded l : jars.values()) if (!cls.contains(l.cl)) cls.add(l.cl);
+    cls.addAll(INNER);
+    for (ClassLoader cl : cls) {
+      java.lang.reflect.Method m;
+      try { m = cl.loadClass("com.github.catvod.spider.Proxy").getMethod("processPush", Map.class); } catch (Throwable t) { if (DEBUG_PUSH) System.err.println("[push] " + cl + ": " + t); continue; }
+      ClassLoader prev = Thread.currentThread().getContextClassLoader(); Thread.currentThread().setContextClassLoader(cl);
+      try { Object r = m.invoke(null, params); if (r instanceof Object[] && ((Object[]) r).length >= 3) return (Object[]) r; }
+      finally { Thread.currentThread().setContextClassLoader(prev); }
+    }
+    return null;
+  }
+
   public Object[] proxy(Map<String, String> params) throws Exception {
     List<String> order = new ArrayList<>(); if (lastJar != null) order.add(lastJar);
     for (String k : jars.keySet()) if (!order.contains(k)) order.add(k);

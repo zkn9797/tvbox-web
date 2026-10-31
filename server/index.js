@@ -311,7 +311,9 @@ function jarProxy(req, res, rest) {
   const lib = target.protocol === 'https:' ? httpsMod : httpMod;
   const h = { 'X-Runtime-Token': sites.runtimeToken() };
   if (req.headers.range) h.Range = req.headers.range;
-  const up = lib.request(target, { method: 'GET', headers: h, timeout: 30000 }, ur => {
+  const post = req.method === 'POST';
+  if (post && req.headers['content-type']) h['Content-Type'] = req.headers['content-type'];
+  const up = lib.request(target, { method: post ? 'POST' : 'GET', headers: h, timeout: 30000 }, ur => {
     const ct = ur.headers['content-type'] || '';
     const hdr = { 'Access-Control-Allow-Origin': '*' };
     for (const k of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'location']) if (ur.headers[k]) hdr[k] = ur.headers[k];
@@ -328,8 +330,8 @@ function jarProxy(req, res, rest) {
   });
   up.on('timeout', () => up.destroy(new Error('timeout')));
   up.on('error', e => { if (!res.headersSent) json(res, { error: e.message }, 502); else res.end(); });
-  req.on('close', () => up.destroy());
-  up.end();
+  res.on('close', () => { if (!res.writableFinished) up.destroy(); });
+  if (post) req.pipe(up); else up.end();
 }
 
 
@@ -380,7 +382,10 @@ const server = http.createServer(async (req, res) => {
       return imgProxy(req, res, url.searchParams.get('u') || '');
     }
     if (p.startsWith('/jp/')) {
-      if (!currentUser(req)) return json(res, { error: '未登录' }, 401);
+      const ju = currentUser(req);
+      if (!ju) return json(res, { error: '未登录' }, 401);
+      // jar config pages (/jp/proxy?do=push) hold cloud-drive cookies: admins only
+      if (url.searchParams.get('do') === 'push' && !ju.is_admin) return json(res, { error: '需要管理员权限' }, 403);
       return jarProxy(req, res, p.slice(4) + (url.search || ''));
     }
     for (const r of routes) {
