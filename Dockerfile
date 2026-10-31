@@ -12,6 +12,7 @@ RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi 
  && npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 
 FROM ${REG}ibm-semeru-runtimes:open-17-jre AS jre
+RUN rm -rf /opt/java/openjdk/legal /opt/java/openjdk/man /opt/java/openjdk/lib/src.zip /opt/java/openjdk/lib/J9TraceFormat.dat
 
 FROM ${REG}debian:bookworm-slim
 ARG APT_MIRROR=
@@ -19,8 +20,10 @@ ARG WITH_BROWSER=1
 RUN if [ -n "$APT_MIRROR" ]; then sed -i "s#deb.debian.org#$APT_MIRROR#g" /etc/apt/sources.list.d/debian.sources; fi \
  && apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates tzdata tini wget psmisc procps \
-      $( [ "$WITH_BROWSER" = 1 ] && echo chromium ) \
- && rm -rf /var/lib/apt/lists/* /usr/share/doc /usr/share/man /usr/share/locale \
+      $( [ "$WITH_BROWSER" = 1 ] && echo chromium-headless-shell ) \
+ && if [ "$WITH_BROWSER" = 1 ]; then hs=$(command -v chromium-headless-shell || find /usr/lib/chromium* -name headless_shell -type f | head -1); ln -sf "$hs" /usr/bin/chromium; fi \
+ && rm -rf /var/lib/apt/lists/* /var/cache/apt/* /var/log/* /usr/share/doc /usr/share/man /usr/share/locale /usr/share/icons /usr/share/info /usr/share/lintian \
+      /usr/lib/*-linux-gnu/dri /usr/lib/*-linux-gnu/libLLVM* /usr/lib/*-linux-gnu/libz3.so* /usr/lib/chromium*/libVkLayer_khronos_validation.so \
  && useradd -r -u 1000 -m -s /usr/sbin/nologin app && mkdir -p /data && chown 1000:1000 /data
 COPY --from=jre /opt/java/openjdk /opt/java/openjdk
 COPY --from=node /usr/local/bin/node /usr/local/bin/node

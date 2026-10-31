@@ -112,6 +112,7 @@ route('POST', '/api/password', async (req, res, u) => {
   json(res, { ok: true });
 });
 
+route('GET', '/api/douban', async (req, res, u, q) => json(res, await require('./douban').collection(q.get('c'), q.get('start'), q.get('count'))));
 route('GET', '/api/repos', async (req, res) => json(res, { repos: await config.listRepos() }));
 
 route('GET', '/api/sites', async (req, res, u, q) => {

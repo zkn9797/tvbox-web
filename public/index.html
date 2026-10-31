@@ -14,10 +14,14 @@
 <body>
 <header id="top">
   <a class="logo" href="#/home">TVBox<span>Web</span></a>
-  <select id="repoSel" title="配置仓库"></select>
+  <nav id="topCats">
+    <a href="#/home" data-k="home">首页</a><a href="#/cat?t=movie" data-k="movie">电影</a><a href="#/cat?t=tv" data-k="tv">剧集</a><a href="#/cat?t=show" data-k="show">综艺</a><a href="#/cat?t=anime" data-k="anime">动漫</a>
+  </nav>
   <form id="searchForm" autocomplete="off"><input id="searchInput" type="search" placeholder="搜索影视…" enterkeyhint="search"><button type="submit" aria-label="搜索">🔍</button></form>
   <nav id="navLinks">
-    <a href="#/home">首页</a><a href="#/history">历史</a><a href="#/fav">收藏</a>
+    <label class="pref" title="点播时优先在这个配置里找片源">首选源 <select id="repoSel"></select></label>
+    <a href="#/history" data-k="history">历史</a><a href="#/fav" data-k="fav">收藏</a><a href="#/browse" data-k="browse">站点</a>
+    <span id="clock"></span>
     <a href="javascript:void 0" id="menuBtn" aria-label="菜单">☰</a>
   </nav>
   <div id="menu" class="hidden">

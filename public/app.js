@@ -61,7 +61,7 @@
   };
   function img(src) { var o = String(src || '').trim(); if (/^\/\//.test(o)) o = 'https:' + o; src = picUrl(o); return src ? '<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(src) + '" onerror="__tvbImgErr(this)" data-o="' + esc(/@(Referer|User-Agent|Cookie|Origin)=/i.test(o) ? src : o) + '">' : ''; }
   function vodCard(v, site, siteName) {
-    return '<div class="vod" data-site="' + esc(site) + '" data-id="' + esc(v.vod_id) + '" data-name="' + esc(v.vod_name) + '" data-pic="' + esc(v.vod_pic) + '">' +
+    return '<div class="vod" tabindex="0" data-site="' + esc(site) + '" data-id="' + esc(v.vod_id) + '" data-name="' + esc(v.vod_name) + '" data-pic="' + esc(v.vod_pic) + '">' +
       '<div class="pic">' + img(v.vod_pic) + (siteName ? '<span class="site">' + esc(siteName) + '</span>' : '') + (v.vod_remarks ? '<span class="rm">' + esc(v.vod_remarks) + '</span>' : '') + '</div>' +
       '<div class="nm">' + esc(v.vod_name) + '</div></div>';
   }
@@ -113,7 +113,7 @@
   }
   $('#repoSel').onchange = function () {
     state.repo = this.value; localStorage.setItem('repo', state.repo);
-    loadSites().then(function () { go('/home', { t: Date.now() }); });
+    loadSites().then(function () { var p = parseHash().path; if (p === '/browse') go('/browse', { t: Date.now() }); else toast('首选源：' + (state.repos.filter(function (r) { return r.id === state.repo; })[0] || {}).name); });
   };
   $('#searchForm').addEventListener('submit', function (e) {
     e.preventDefault(); var wd = $('#searchInput').value.trim(); if (wd) go('/search', { wd: wd, t: Date.now() });
@@ -127,13 +127,103 @@
   function route() {
     if (cleanup) { try { cleanup(); } catch (e) { } cleanup = null; }
     window.scrollTo(0, 0);
-    var h = parseHash();
+    var h = parseHash(); markNav();
     if (h.path === '/search') return viewSearch(h.q.wd);
     if (h.path === '/detail') return viewDetail(h.q);
     if (h.path === '/history') return viewHistory();
     if (h.path === '/fav') return viewFav();
-    return viewHome(h.q);
+    if (h.path === '/browse') return viewHome(h.q);
+    if (h.path === '/cat') return viewCat(h.q);
+    return viewTvHome();
   }
+  function markNav() {
+    var h = parseHash(), k = h.path === '/cat' ? (h.q.t || 'movie') : h.path.replace('/', '') || 'home';
+    if (h.path === '/detail' || h.path === '/search') k = '';
+    [].forEach.call(document.querySelectorAll('#topCats a,#navLinks a[data-k]'), function (a) { a.classList.toggle('on', a.getAttribute('data-k') === k); });
+  }
+
+  // ---------------- TVBox-style home: douban recommendations ----------------
+  var DB_CATS = {
+    movie: { name: '电影', subs: [['movie_hot_gaia', '热门'], ['movie_showing', '院线'], ['movie_latest', '最新'], ['movie_top250', 'Top250']] },
+    tv: { name: '剧集', subs: [['tv_hot', '热门'], ['tv_domestic', '国产剧'], ['tv_american', '欧美剧'], ['tv_korean', '韩剧'], ['tv_japanese', '日剧']] },
+    show: { name: '综艺', subs: [['show_hot', '热门'], ['show_domestic', '国内'], ['show_foreign', '国外']] },
+    anime: { name: '动漫', subs: [['tv_animation', '热门动画']] },
+  };
+  var HOME_ROWS = [['movie_showing', '正在热映', 'movie'], ['tv_hot', '热门剧集', 'tv'], ['movie_hot_gaia', '热门电影', 'movie'], ['show_hot', '热门综艺', 'show'], ['tv_animation', '热门动漫', 'anime']];
+  function dbCard(d) {
+    return '<div class="vod" tabindex="0" data-db="1" data-name="' + esc(d.title) + '" data-year="' + esc(d.year) + '" data-pic="' + esc(d.pic) + '">' +
+      '<div class="pic">' + img(d.pic) + (d.rating ? '<span class="rt">' + esc(d.rating) + '</span>' : '') + (d.year ? '<span class="rm">' + esc(d.year) + '</span>' : '') + '</div>' +
+      '<div class="nm">' + esc(d.title) + '</div><div class="sub">' + esc(d.sub || '') + '</div></div>';
+  }
+  function bindDb(root) {
+    root.addEventListener('click', function (e) {
+      var c = e.target.closest ? e.target.closest('.vod') : null; if (!c) return;
+      if (c.getAttribute('data-db')) { go('/detail', { auto: 1, name: c.getAttribute('data-name'), year: c.getAttribute('data-year'), pic: c.getAttribute('data-pic') }); return; }
+      if (c.getAttribute('data-hist')) go('/detail', { repo: c.getAttribute('data-repo'), site: c.getAttribute('data-site'), id: c.getAttribute('data-id'), name: c.getAttribute('data-name'), pic: c.getAttribute('data-pic') });
+    });
+  }
+  function viewTvHome() {
+    app.innerHTML = '<div id="rows"><div class="hrow hidden" id="contRow"><div class="hd"><b>继续观看</b><a href="#/history">全部 ›</a></div><div class="strip" id="contStrip"></div></div>' +
+      HOME_ROWS.map(function (r) { return '<div class="hrow"><div class="hd"><b>' + esc(r[1]) + '</b><a href="#/cat?' + qs({ t: r[2], c: r[0] }) + '">更多 ›</a></div><div class="strip" data-c="' + r[0] + '"><div class="muted">加载中…</div></div></div>'; }).join('') + '</div>';
+    bindDb($('#rows'));
+    api('/api/history').then(function (j) {
+      var l = (j.list || []).slice(0, 15); if (!l.length) return;
+      $('#contStrip').innerHTML = l.map(function (h) {
+        var repo = h.site.split('|')[0], key = h.site.slice(repo.length + 1), pct = h.duration ? Math.min(100, Math.round(h.position / h.duration * 100)) : 0;
+        return '<div class="vod" tabindex="0" data-hist="1" data-repo="' + esc(repo) + '" data-site="' + esc(key) + '" data-id="' + esc(h.vod_id) + '" data-name="' + esc(h.vod_name) + '" data-pic="' + esc(h.vod_pic) + '"><div class="pic">' + img(h.vod_pic) +
+          '<span class="rm">' + esc(h.ep_name || '') + '</span><span class="prog"><i style="width:' + pct + '%"></i></span></div><div class="nm">' + esc(h.vod_name) + '</div></div>';
+      }).join('');
+      $('#contRow').classList.remove('hidden');
+    }).catch(function () { });
+    [].forEach.call(app.querySelectorAll('.strip[data-c]'), function (el) {
+      apiRetry('/api/douban?' + qs({ c: el.getAttribute('data-c'), count: 20 }), { timeout: 20000 }).then(function (j) {
+        el.innerHTML = (j.list || []).map(dbCard).join('') || '<div class="muted">暂无</div>';
+      }).catch(function (e) { el.innerHTML = '<div class="muted">豆瓣加载失败：' + esc(e.message) + '</div>'; });
+    });
+  }
+  function viewCat(q) {
+    var t = DB_CATS[q.t] ? q.t : 'movie', cat = DB_CATS[t];
+    var c = q.c && cat.subs.some(function (x) { return x[0] === q.c; }) ? q.c : cat.subs[0][0];
+    app.innerHTML = '<div class="tabs" id="subs">' + cat.subs.map(function (x) { return '<span class="tab' + (x[0] === c ? ' on' : '') + '" tabindex="0" data-c="' + x[0] + '">' + esc(x[1]) + '</span>'; }).join('') + '</div><div class="grid" id="grid"><div class="muted">加载中…</div></div><button class="more ghost hidden" id="moreBtn">加载更多</button>';
+    var grid = $('#grid'); bindDb(grid);
+    var st = { start: 0, total: 0, loading: false };
+    $('#subs').onclick = function (e) { var x = e.target.closest('.tab'); if (x) go('/cat', { t: t, c: x.getAttribute('data-c') }); };
+    function load() {
+      st.loading = true; $('#moreBtn').classList.add('hidden');
+      apiRetry('/api/douban?' + qs({ c: c, start: st.start, count: 30 }), { timeout: 20000 }).then(function (j) {
+        var html = (j.list || []).map(dbCard).join('');
+        if (!st.start) grid.innerHTML = html || '<div class="empty">暂无</div>'; else grid.insertAdjacentHTML('beforeend', html);
+        st.start += 30; st.total = j.total || 0; st.loading = false;
+        $('#moreBtn').classList.toggle('hidden', !(j.list || []).length || st.start >= st.total);
+      }).catch(function (e) { st.loading = false; if (!st.start) grid.innerHTML = failHtml(e.message); else { toast(e.message); $('#moreBtn').classList.remove('hidden'); } var b = grid.querySelector('.retry'); if (b) b.onclick = function (ev) { ev.stopPropagation(); load(); }; });
+    }
+    load();
+    $('#moreBtn').onclick = function () { if (!st.loading) load(); };
+    var onScroll = function () { if (!st.loading && !$('#moreBtn').classList.contains('hidden') && window.innerHeight + window.scrollY > document.body.offsetHeight - 600) load(); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    cleanup = function () { window.removeEventListener('scroll', onScroll); };
+  }
+
+  // ---------------- remote-control / keyboard focus navigation (TV boxes) ----------------
+  document.addEventListener('keydown', function (e) {
+    var dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    var a = document.activeElement || document.body;
+    if (e.key === 'Enter' && a.classList && (a.classList.contains('vod') || a.classList.contains('tab') || a.classList.contains('ep'))) { e.preventDefault(); a.click(); return; }
+    var d = dirs[e.key]; if (!d) return;
+    if (/INPUT|SELECT|TEXTAREA/.test(a.tagName)) return;
+    if (parseHash().path === '/detail' && (a === document.body || a.tagName === 'VIDEO')) return; // player keys seek
+    var els = [].filter.call(document.querySelectorAll('.vod,#topCats a,#navLinks a,.tab,.ep,#searchInput,.pbtns button,.more'), function (x) { return x.offsetParent !== null; });
+    if (!els.length) return;
+    if (a === document.body || els.indexOf(a) < 0) { e.preventDefault(); (document.querySelector('#app .vod,#app .tab') || els[0]).focus(); return; }
+    var r = a.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, best = null, bs = 1e12;
+    els.forEach(function (x) {
+      if (x === a) return; var q = x.getBoundingClientRect(), dx = q.left + q.width / 2 - cx, dy = q.top + q.height / 2 - cy;
+      var main = d[0] ? dx * d[0] : dy * d[1], cross = d[0] ? Math.abs(dy) : Math.abs(dx);
+      if (main <= 4) return; var sc = main + cross * 3; if (sc < bs) { bs = sc; best = x; }
+    });
+    if (best) { e.preventDefault(); best.focus(); best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
+  });
+  setInterval(function () { var c = $('#clock'); if (c) { var d = new Date(); c.textContent = (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(); } }, 10000);
 
   function viewHome(q) {
     if (!state.repo) { app.innerHTML = '<div class="empty">还没有配置源。请管理员在后台添加 TVBox 配置地址。</div>'; return; }
@@ -144,7 +234,7 @@
     app.innerHTML = '<div class="bar"><select id="siteSel">' + opts + '</select><span class="muted" id="siteInfo"></span></div>' +
       '<div class="tabs" id="cats"></div><div class="grid" id="grid"></div><button class="more ghost hidden" id="moreBtn">加载更多</button>';
     if (!key) { $('#grid').outerHTML = '<div class="empty">此配置中没有当前可用的站点类型（' + state.sites.length + ' 个站点，多为 jar 爬虫）。可切换其他配置，或启用 jar 扩展。</div>'; }
-    $('#siteSel').onchange = function () { localStorage.setItem('site:' + state.repo, this.value); go('/home', { site: this.value }); };
+    $('#siteSel').onchange = function () { localStorage.setItem('site:' + state.repo, this.value); go('/browse', { site: this.value }); };
     if (!key) return;
     var grid = $('#grid'); bindCards(grid);
     var cur = { tid: null, pg: 1, pagecount: 0, loading: false };
@@ -163,7 +253,7 @@
       else if (cls.length) loadCat(cls[0].type_id, 1);
       else grid.innerHTML = '<div class="empty">没有内容</div>';
     }).catch(function (e) {
-      if (/^warming/.test(e.message) && parseHash().path === '/home') { grid.innerHTML = '<div class="muted">jar 爬虫预热中（首次需下载并转换，路由器上约 1–2 分钟），完成后自动加载…</div>'; var rt = setTimeout(function () { route(); }, 8000); var oc = cleanup; cleanup = function () { clearTimeout(rt); oc && oc(); }; return; }
+      if (/^warming/.test(e.message) && parseHash().path === '/browse') { grid.innerHTML = '<div class="muted">jar 爬虫预热中（首次需下载并转换，路由器上约 1–2 分钟），完成后自动加载…</div>'; var rt = setTimeout(function () { route(); }, 8000); var oc = cleanup; cleanup = function () { clearTimeout(rt); oc && oc(); }; return; }
       grid.innerHTML = failHtml(e.message);
       var b = grid.querySelector('.retry'); if (b) b.onclick = function (ev) { ev.stopPropagation(); route(); };
     });
@@ -456,11 +546,12 @@
         video.play().catch(function () { });
       }
       // stall watchdog
-      var lastPos = -1, stallSince = 0;
+      var lastPos = -1, stallSince = 0, waits = [];
+      video.onwaiting = function () { if (!started || token !== P.playToken) return; var t = Date.now(); waits.push(t); waits = waits.filter(function (x) { return t - x < 90000; }); if (waits.length >= 5) { waits = []; fail('频繁卡顿'); } };
       var check = function () {
         if (token !== P.playToken) return;
         if (!video.paused && started) {
-          if (video.currentTime === lastPos) { if (!stallSince) stallSince = Date.now(); else if (Date.now() - stallSince > 20000) { fail('播放卡住'); return; } }
+          if (video.currentTime === lastPos) { if (!stallSince) stallSince = Date.now(); else if (Date.now() - stallSince > 12000) { fail('播放卡住'); return; } }
           else { stallSince = 0; lastPos = video.currentTime; }
         } else stallSince = 0;
         P.stallTimer = setTimeout(check, 2000);
@@ -511,10 +602,10 @@
     function crossSiteSwitch(pos, why) {
       if (!P.vod) { msg('播放失败：' + why); return; }
       P.switching = true;
-      var name = P.vod.vod_name, nt = normTitle(name), year = String(P.vod.vod_year || '').slice(0, 4), epCount = P.lines[P.li].eps.length, epName = curEpName(), epIdx = P.ei;
+      var name = P.dbName || P.vod.vod_name, nt = normTitle(name), year = String(P.dbYear || P.vod.vod_year || '').slice(0, 4), epCount = P.lines[P.li].eps.length, epName = curEpName(), epIdx = P.ei;
       toast('本站全部线路失败，正在其他站点搜索「' + name + '」…', 4000);
       msg('换源中…');
-      var cands = [], done = false, busy = false;
+      var cands = (P.cands || []).filter(function (c) { return !(c.site === P.site && String(c.v.vod_id) === String(P.id)); }), done = false, busy = false; P.cands = null;
       function score(v) {
         var s = 0; if (normTitle(v.vod_name) === nt) s += 100; else if (normTitle(v.vod_name).indexOf(nt) >= 0) s += 30; else return -1;
         if (year && String(v.vod_year || '').slice(0, 4) === year) s += 20;
@@ -576,7 +667,8 @@
     };
 
     // ---- boot ----
-    Promise.all([loadDetail(P.site, P.id), api('/api/history/one?' + qs({ site: P.repo + '|' + P.site, id: P.id })).catch(function () { return {}; })]).then(function (r) {
+    if (q.auto) { P.dbName = q.name; P.dbYear = q.year; autoFind(); }
+    else Promise.all([loadDetail(P.site, P.id), api('/api/history/one?' + qs({ site: P.repo + '|' + P.site, id: P.id })).catch(function () { return {}; })]).then(function (r) {
       if (P.destroyed) return;
       P.vod = r[0].vod; P.lines = r[0].lines;
       var h = r[1] && r[1].item, start = 0;
@@ -595,8 +687,68 @@
       if (q.name) { P.vod = { vod_name: q.name, vod_pic: q.pic }; P.lines = [{ flag: '-', eps: [{ name: '', url: '' }] }]; crossSiteSwitch(0, e.message); }
     });
 
+    // douban pick: search the preferred repo, race the best-matching sites, play whichever answers first
+    function autoFind() {
+      var name = q.name || '', nt = normTitle(name), year = String(q.year || '').slice(0, 4);
+      var repoName = (state.repos.filter(function (r) { return r.id === P.repo; })[0] || {}).name || '';
+      $('#info').innerHTML = '<h1>' + esc(name) + '</h1><div class="autofind" id="af">正在「' + esc(repoName) + '」里查找最快的片源…</div>';
+      msg('查找片源…'); $('#eps').innerHTML = '<div class="muted">查找中…</div>';
+      var cands = [], done = false, racing = false, raceTimer = null, sitesN = 0, adopted = false;
+      function score(v) {
+        var t = normTitle(v.vod_name), s;
+        if (t === nt) s = 100; else if (t.indexOf(nt) === 0 && t.length - nt.length <= 3) s = 60; else return -1;
+        var vy = String(v.vod_year || '').slice(0, 4); if (year && vy) s += vy === year ? 20 : -40;
+        return s;
+      }
+      function af(t) { var e = $('#af'); if (e) e.textContent = t; }
+      var hist = api('/api/history').then(function (j) { return (j.list || []).filter(function (h) { return normTitle(h.vod_name) === nt && h.site.split('|')[0] === String(P.repo); })[0]; }).catch(function () { return null; });
+      var es = streamSearch(name, function (r) {
+        sitesN++;
+        (r.list || []).forEach(function (v) { var sc = score(v); if (sc >= 0) cands.push({ site: r.site, siteName: r.siteName, v: v, s: sc, ms: r.ms }); });
+        af('已搜索 ' + sitesN + ' 个站点，匹配 ' + cands.length + ' 个片源…');
+        if (!raceTimer && cands.some(function (c) { return c.s >= 100; })) raceTimer = setTimeout(race, 1500);
+        if (cands.length >= 8 && !racing) race();
+      }, function () { done = true; race(); }, P.repo);
+      P.afStop = function () { es.close(); clearTimeout(raceTimer); };
+      function adopt(c, d, h) {
+        if (adopted || P.destroyed) return; adopted = true; es.close(); clearTimeout(raceTimer);
+        P.site = c.site; P.id = String(c.v.vod_id); P.vod = d.vod; P.lines = d.lines; P.li = 0; P.ei = 0;
+        if (!P.vod.vod_pic) P.vod.vod_pic = q.pic;
+        P.cands = cands.filter(function (x) { return x !== c; });
+        var start = 0;
+        if (h && h.site === P.repo + '|' + P.site && h.vod_id === P.id) {
+          var li = -1; P.lines.forEach(function (l, i) { if (li < 0 && l.flag === h.flag) li = i; }); if (li >= 0) P.li = li;
+          P.ei = epMatch(P.lines[P.li].eps, h.ep_name, h.ep_index); start = h.position || 0;
+          if (start > 5) toast('从 ' + fmtTime(start) + ' 继续播放（' + (h.ep_name || '') + '）');
+        }
+        toast('片源：' + c.siteName + (c.ms ? '（' + c.ms + 'ms）' : ''));
+        renderInfo(); renderLines(); favState(); playCurrent(start);
+      }
+      function race() {
+        if (racing || adopted) return; racing = true;
+        hist.then(function (h) {
+          if (h) { var key = h.site.slice(String(P.repo).length + 1), hc = cands.filter(function (c) { return c.site === key && String(c.v.vod_id) === h.vod_id; })[0]; if (hc) { cands.splice(cands.indexOf(hc), 1); cands.unshift(hc); hc.s += 1000; } }
+          cands.sort(function (a, b) { return (b.s - a.s) || ((state.siteMap[a.site] ? state.siteMap[a.site].score : 3000) - (state.siteMap[b.site] ? state.siteMap[b.site].score : 3000)); });
+          var batch = cands.filter(function (c) { return !c.tried; }).slice(0, 4);
+          if (!batch.length) {
+            racing = false;
+            if (done) { msg('没有找到可播放的片源'); af('在「' + repoName + '」里没有找到「' + name + '」，可以换一个首选源或手动搜索。'); $('#eps').innerHTML = '<div class="empty"><a href="#/search?' + qs({ wd: name }) + '">手动搜索「' + esc(name) + '」</a></div>'; }
+            return;
+          }
+          af('正在比较 ' + batch.map(function (c) { return c.siteName; }).join('、') + ' …');
+          var left = batch.length;
+          batch.forEach(function (c) {
+            c.tried = true;
+            loadDetail(c.site, c.v.vod_id).then(function (d) { adopt(c, d, h); }).catch(function () {
+              if (--left === 0 && !adopted) { racing = false; race(); }
+            });
+          });
+        });
+      }
+    }
+
     cleanup = function () {
-      P.destroyed = true; saveHistory(true); destroyEngine();
+      P.destroyed = true; if (P.afStop) P.afStop(); saveHistory(true); destroyEngine();
       document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide);
     };
   }

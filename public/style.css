@@ -85,3 +85,26 @@ main{padding:12px;max-width:1400px;margin:0 auto;padding-bottom:calc(24px + env(
   #navLinks{margin-left:auto;gap:10px}
   main{padding:8px}
 }
+/* ---- TVBox TV-style home ---- */
+#topCats{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+#topCats::-webkit-scrollbar{display:none}
+#topCats a{color:#b8bac0;padding:6px 12px;border-radius:18px;font-size:15px;white-space:nowrap}
+#topCats a.on{background:#2f7cf6;color:#fff;font-weight:600}
+#navLinks a.on{color:#fff;font-weight:600}
+.pref{color:#888;font-size:12px;display:flex;align-items:center;gap:4px}
+.pref select{padding:4px 6px;max-width:120px}
+#clock{color:#9a9ca2;font-variant-numeric:tabular-nums}
+@media(max-width:760px){#clock{display:none}#topCats{order:5;width:100%}#searchForm{flex-basis:140px}}
+.hrow{margin:4px 0 18px}
+.hrow .hd{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+.hrow .hd b{font-size:17px}
+.hrow .hd a{color:#9a9ca2;font-size:13px}
+.strip{display:flex;gap:12px;overflow-x:auto;padding:4px 2px 8px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.strip .vod{flex:0 0 118px;scroll-snap-align:start}
+@media(min-width:768px){.strip .vod{flex-basis:150px}}
+.vod .rt{position:absolute;right:4px;top:4px;font-size:11px;background:rgba(255,160,0,.92);color:#222;font-weight:700;border-radius:4px;padding:0 5px}
+.vod .sub{font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vod:focus,.tab:focus,#topCats a:focus,#navLinks a:focus,button:focus-visible{outline:3px solid #2f7cf6;outline-offset:2px;border-radius:8px}
+.vod:focus .pic{transform:scale(1.04);transition:transform .15s}
+.vod .prog{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.2)}.vod .prog i{display:block;height:100%;background:#2f7cf6}
+.autofind{padding:10px 12px;border-radius:8px;background:#1d2026;margin:8px 0;font-size:13px;color:#aaa}
