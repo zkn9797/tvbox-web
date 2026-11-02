@@ -30,12 +30,13 @@ if (db.prepare('SELECT COUNT(*) AS n FROM configs').get().n === 0) {
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json', '.ico': 'image/x-icon', '.webmanifest': 'application/manifest+json' };
 const staticCache = new Map();
 function serveFile(req, res, file, extraHeaders) {
-  let e = staticCache.get(file);
+  let e = staticCache.get(file), st;
+  try { st = fs.statSync(file); } catch { return notFound(res); }
+  if (e && e.mtime !== st.mtimeMs) e = null; // file replaced (hot fix / docker cp): rebuild cache entry
   if (!e) {
-    if (!fs.existsSync(file)) return notFound(res);
     const raw = fs.readFileSync(file);
     const ext = path.extname(file);
-    e = { raw, gz: /\.(html|js|css|svg|json)$/.test(ext) ? zlib.gzipSync(raw, { level: 9 }) : null, type: MIME[ext] || 'application/octet-stream', etag: '"' + crypto.createHash('md5').update(raw).digest('hex').slice(0, 16) + '"' };
+    e = { raw, gz: /\.(html|js|css|svg|json)$/.test(ext) ? zlib.gzipSync(raw, { level: 9 }) : null, type: MIME[ext] || 'application/octet-stream', etag: '"' + crypto.createHash('md5').update(raw).digest('hex').slice(0, 16) + '"', mtime: st.mtimeMs };
     staticCache.set(file, e);
   }
   const h = Object.assign({ 'Content-Type': e.type, ETag: e.etag, 'Cache-Control': 'no-cache' }, extraHeaders || {});
