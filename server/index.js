@@ -10,6 +10,7 @@ const config = require('./config');
 const sites = require('./sites');
 const play = require('./play');
 const jsHost = require('./spider/host');
+require('./cmsfeed').start();
 
 const PORT = Number(process.env.PORT || 8686);
 require('./net').configure({ proxy: getSetting('upstream_proxy') || '', cfIps: getSetting('cf_ips') || '' });
@@ -261,6 +262,8 @@ route('POST', A + '/api/configs/(\\d+)/refresh', async (req, res, u, q, m) => {
   try { await config.loadUrl(cur.url, { inline: cur.content || null, force: true }); config.clearCache(); sites.clearCache(); json(res, { ok: true }); }
   catch (e) { json(res, { error: e.message }, 400); }
 }, { admin: true });
+route('GET', A + '/api/cmsfeed', async (req, res) => json(res, { report: require('./cmsfeed').report() }), { admin: true });
+route('POST', A + '/api/cmsfeed/run', async (req, res) => json(res, { report: await require('./cmsfeed').run('manual') }), { admin: true });
 route('GET', A + '/api/runtime', async (req, res) => {
   const url = sites.runtimeUrl(); let health = null, error = null;
   if (url) { try { const r = await require('./util').httpFetch(url + '/health', { timeout: 5000, headers: { 'X-Runtime-Token': sites.runtimeToken() } }); health = JSON.parse(r.text); } catch (e) { error = e.message; } }
