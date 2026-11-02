@@ -615,7 +615,7 @@
       var t0 = Date.now();
       return api('/api/play?' + qs({ repo: P.repo, site: P.site, flag: line.flag, id: ep.url, native: useNativeHls() && IS_IOS ? 1 : '', https: location.protocol === 'https:' ? 1 : '', proxy: forceProxy || preferProxy() ? 1 : '' }), { timeout: 50000 }).then(function (src) {
         if (token !== P.playToken) return;
-        $('#lineInfo').textContent = (src.mode === 'direct' ? '直连' : src.mode === 'proxy-m3u8' ? '代理索引' : src.mode === 'proxy' ? '代理' : '') + ' · ' + (Date.now() - t0) + 'ms';
+        $('#lineInfo').textContent = [src.mode === 'direct' ? '直连' : src.mode === 'proxy-m3u8' ? '代理索引' : src.mode === 'proxy' ? '代理' : src.mode === 'sniff' ? '嗅探' : '', (Date.now() - t0) + 'ms'].filter(Boolean).join(' · ');
         msg('加载视频…');
         attach(src, startAt, token);
       }).catch(function (e) { if (token === P.playToken) onFail(e.message); });
