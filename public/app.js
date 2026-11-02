@@ -126,6 +126,7 @@
   var cleanup = null;
   function route() {
     if (cleanup) { try { cleanup(); } catch (e) { } cleanup = null; }
+    document.body.classList.remove('has-hero');
     window.scrollTo(0, 0);
     var h = parseHash(); markNav();
     if (h.path === '/search') return viewSearch(h.q.wd);
@@ -162,10 +163,50 @@
       if (c.getAttribute('data-hist')) go('/detail', { repo: c.getAttribute('data-repo'), site: c.getAttribute('data-site'), id: c.getAttribute('data-id'), name: c.getAttribute('data-name'), pic: c.getAttribute('data-pic') });
     });
   }
+  function decodeEnt(t) { var d = document.createElement('textarea'); d.innerHTML = t; return d.value.replace(/\u00a0/g, ' '); }
+  function bigPic(p) { return String(p || '').replace('/s_ratio_poster/', '/l_ratio_poster/'); }
+  function heroHtml() {
+    return '<section class="hero" id="hero"><div class="hero-bg" id="heroBg"></div><div class="hero-shade"></div><div class="hero-in"><div class="hero-txt" id="heroTxt"></div><div class="hero-poster" id="heroPoster"></div></div><div class="hero-dots" id="heroDots"></div></section>';
+  }
+  function initHero() {
+    var hero = $('#hero'); if (!hero) return;
+    var top = $('#top'); hero.style.marginTop = -(top.offsetHeight + 16) + 'px'; hero.style.paddingTop = top.offsetHeight + 'px';
+    apiRetry('/api/douban?' + qs({ c: 'movie_showing', count: 12 }), { timeout: 20000 }).then(function (j) {
+      var l = (j.list || []).filter(function (d) { return d.pic; }).sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); }).slice(0, 6);
+      if (!l.length || !$('#hero')) return;
+      var i = 0, timer = null;
+      $('#heroDots').innerHTML = l.map(function (_, k) { return '<i data-k="' + k + '"></i>'; }).join('');
+      function show(k) {
+        i = (k + l.length) % l.length; var d = l[i], u = picUrl(bigPic(d.pic));
+        $('#heroBg').style.backgroundImage = 'url("' + u + '")';
+        $('#heroPoster').innerHTML = '<img src="' + esc(u) + '" alt="">';
+        $('#heroTxt').innerHTML = '<div class="hero-tag">正在热映 · TOP ' + (i + 1) + '</div><h2>' + esc(d.title) + '</h2>' +
+          '<div class="hero-meta">' + (d.rating ? '<span class="star">★ ' + esc(d.rating) + '</span>' : '') + esc(d.info || d.sub || d.year) + '</div>' +
+          '<div class="hero-btns"><button class="btn-play" id="heroPlay">▶ 立即播放</button><a class="btn-glass" href="#/cat?t=movie&c=movie_showing">更多热映</a></div>';
+        $('#heroPlay').onclick = function () { go('/detail', { auto: 1, name: d.title, year: d.year, pic: d.pic }); };
+        [].forEach.call($('#heroDots').children, function (x, k) { x.classList.toggle('on', k === i); });
+        hero.classList.remove('swap'); void hero.offsetWidth; hero.classList.add('swap');
+      }
+      function auto() { clearInterval(timer); timer = setInterval(function () { if (!$('#hero')) return clearInterval(timer); show(i + 1); }, 7000); }
+      $('#heroDots').onclick = function (e) { var k = e.target.getAttribute('data-k'); if (k != null) { show(+k); auto(); } };
+      hero.onmouseenter = function () { clearInterval(timer); }; hero.onmouseleave = auto;
+      show(0); auto();
+      var oc = cleanup; cleanup = function () { clearInterval(timer); if (oc) oc(); };
+    }).catch(function () { hero.classList.add('hidden'); });
+  }
+  function stripArrows(root) {
+    [].forEach.call(root.querySelectorAll('.strip'), function (st) {
+      if (st.parentNode.classList.contains('sw')) return;
+      var w = document.createElement('div'); w.className = 'sw'; st.parentNode.insertBefore(w, st); w.appendChild(st);
+      w.insertAdjacentHTML('beforeend', '<button class="arr l" tabindex="-1" aria-label="向左">‹</button><button class="arr r" tabindex="-1" aria-label="向右">›</button>');
+      w.querySelector('.l').onclick = function () { st.scrollBy({ left: -st.clientWidth * .85, behavior: 'smooth' }); };
+      w.querySelector('.r').onclick = function () { st.scrollBy({ left: st.clientWidth * .85, behavior: 'smooth' }); };
+    });
+  }
   function viewTvHome() {
-    app.innerHTML = '<div id="rows"><div class="hrow hidden" id="contRow"><div class="hd"><b>继续观看</b><a href="#/history">全部 ›</a></div><div class="strip" id="contStrip"></div></div>' +
+    app.innerHTML = heroHtml() + '<div id="rows"><div class="hrow hidden" id="contRow"><div class="hd"><b>继续观看</b><a href="#/history">全部 ›</a></div><div class="strip" id="contStrip"></div></div>' +
       HOME_ROWS.map(function (r) { return '<div class="hrow"><div class="hd"><b>' + esc(r[1]) + '</b><a href="#/cat?' + qs({ t: r[2], c: r[0] }) + '">更多 ›</a></div><div class="strip" data-c="' + r[0] + '"><div class="muted">加载中…</div></div></div>'; }).join('') + '</div>';
-    bindDb($('#rows'));
+    bindDb($('#rows')); stripArrows($('#rows')); document.body.classList.add('has-hero'); initHero();
     api('/api/history').then(function (j) {
       var l = (j.list || []).slice(0, 15); if (!l.length) return;
       $('#contStrip').innerHTML = l.map(function (h) {
@@ -223,6 +264,8 @@
     });
     if (best) { e.preventDefault(); best.focus(); best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
   });
+  var onTopScroll = function () { document.body.classList.toggle('scrolled', window.scrollY > 30); };
+  window.addEventListener('scroll', onTopScroll, { passive: true }); onTopScroll();
   setInterval(function () { var c = $('#clock'); if (c) { var d = new Date(); c.textContent = (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(); } }, 10000);
 
   function viewHome(q) {
@@ -392,7 +435,7 @@
       repo: q.repo || state.repo, site: q.site, id: q.id, vod: null, lines: [], li: 0, ei: 0,
       hls: null, mts: null, tried: {}, switching: false, resumeAt: 0, stallTimer: null, startTimer: null, lastT: 0, saveT: 0, destroyed: false, playToken: 0,
     };
-    app.innerHTML = '<div class="detail"><div><div class="player" id="pl"><video id="vd" controls playsinline webkit-playsinline x5-playsinline x5-video-player-type="h5" x5-video-player-fullscreen="true" x-webkit-airplay="allow" preload="auto" referrerpolicy="no-referrer"></video>' +
+    app.innerHTML = '<div class="dbg" id="dbg"></div><div class="detail"><div><div class="player" id="pl"><video id="vd" controls playsinline webkit-playsinline x5-playsinline x5-video-player-type="h5" x5-video-player-fullscreen="true" x-webkit-airplay="allow" preload="auto" referrerpolicy="no-referrer"></video>' +
       '<div class="ov"><span id="nowp"></span><span id="srcinfo" class="muted"></span></div><div class="msg hidden" id="pmsg"></div></div>' +
       '<div class="pbtns"><button id="bPrev">上一集</button><button id="bNext">下一集</button><button id="bSwitch">换源</button><button id="bFav">☆ 收藏</button><button id="bFs">全屏</button><select id="bRate"><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option><option value="0.75">0.75x</option></select></div>' +
       '<div id="srcPanel" class="srcpanel hidden"></div>' +
@@ -451,10 +494,11 @@
       });
     }
     function renderInfo() {
-      var v = P.vod;
-      $('#info').innerHTML = '<h1>' + esc(v.vod_name) + '</h1><div class="meta">' + esc([v.vod_year, v.vod_area, v.type_name, v.vod_remarks].filter(function (x) { return x && !/^(年份|地区|类型|更新信息)$/.test(x); }).join(' · ')) + ' · 来源：' + esc(siteName(P.site)) + '</div>' +
+      var v = P.vod, pu = picUrl(v.vod_pic || q.pic);
+      if (pu) $('#dbg').style.backgroundImage = 'url("' + pu.replace(/"/g, '%22') + '")';
+      $('#info').innerHTML = (v.vod_pic || q.pic ? '<div class="iposter">' + img(v.vod_pic || q.pic) + '</div>' : '') + '<div class="itxt"><h1>' + esc(v.vod_name) + '</h1><div class="meta">' + esc([v.vod_year, v.vod_area, v.type_name, v.vod_remarks].filter(function (x) { return x && !/^(年份|地区|类型|更新信息)$/.test(x); }).join(' · ')) + ' · 来源：' + esc(siteName(P.site)) + '</div>' +
         (v.vod_actor && v.vod_actor !== '主演' ? '<div class="meta">主演：' + esc(v.vod_actor) + '</div>' : '') +
-        '<div class="desc" id="desc">' + esc(String(v.vod_content || '').replace(/<[^>]+>/g, '')) + '</div>';
+        '<div class="desc" id="desc">' + esc(decodeEnt(String(v.vod_content || '').replace(/<[^>]+>/g, '')).trim()) + '</div></div>';
       $('#desc').onclick = function () { this.classList.toggle('open'); };
       $('#nowp').textContent = v.vod_name;
     }
@@ -691,7 +735,8 @@
     function autoFind() {
       var name = q.name || '', nt = normTitle(name), year = String(q.year || '').slice(0, 4);
       var repoName = (state.repos.filter(function (r) { return r.id === P.repo; })[0] || {}).name || '';
-      $('#info').innerHTML = '<h1>' + esc(name) + '</h1><div class="autofind" id="af">正在「' + esc(repoName) + '」里查找最快的片源…</div>';
+      if (q.pic) $('#dbg').style.backgroundImage = 'url("' + picUrl(q.pic).replace(/"/g, '%22') + '")';
+      $('#info').innerHTML = (q.pic ? '<div class="iposter">' + img(q.pic) + '</div>' : '') + '<div class="itxt"><h1>' + esc(name) + '</h1><div class="autofind" id="af"><span class="spin"></span>正在「' + esc(repoName) + '」里查找最快的片源…</div></div>';
       msg('查找片源…'); $('#eps').innerHTML = '<div class="muted">查找中…</div>';
       var cands = [], done = false, racing = false, raceTimer = null, sitesN = 0, adopted = false;
       function score(v) {
@@ -756,7 +801,9 @@
   // ---------------- boot ----------------
   function init() {
     $('#menuUser').textContent = state.user ? '当前用户：' + state.user.username : '';
-    loadRepos().catch(function (e) { toast(e.message); }).then(route);
+    var hp = parseHash().path, fast = hp === '/' || hp === '/home' || hp === '/cat' || hp === '';
+    if (fast) route(); // douban home/category don't need the repo list
+    loadRepos().catch(function (e) { toast(e.message); }).then(function () { if (!fast) route(); });
   }
   window.addEventListener('hashchange', route);
   api('/api/me').then(function (j) {

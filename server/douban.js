@@ -37,7 +37,7 @@ function mapItem(x) {
     // doubanio answers 418 without a douban Referer: let the router fetch it (/img honours @Referer=)
     id: String(x.id || ''), title: x.title || '', pic: ((x.cover && x.cover.url) || (x.pic && (x.pic.normal || x.pic.large)) || '').replace(/^(https?:\/\/\S+)$/, '$1@Referer=https://movie.douban.com/'),
     rating: x.rating && x.rating.value ? Number(x.rating.value).toFixed(1) : '', year, type: x.type || '',
-    sub: sub.split(' / ').slice(year ? 1 : 0, 3).join(' / '),
+    sub: sub.split(' / ').slice(year ? 1 : 0, 3).join(' / '), info: sub,
   };
 }
 
