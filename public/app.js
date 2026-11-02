@@ -54,12 +54,13 @@
   // poster error handling: direct URL failed -> retry through the router (/img); /img failed -> one delayed retry; then a placeholder.
   window.__tvbImgErr = function (el) {
     var o = el.getAttribute('data-o') || '', n = Number(el.getAttribute('data-n') || 0);
+    if (n >= 1) el.classList.add('ld');
     el.setAttribute('data-n', n + 1);
     if (n === 0 && o.indexOf('/img?') !== 0) { el.src = '/img?v=' + IMG_V + '&u=' + encodeURIComponent(o); return; }
     if (n <= 1) { setTimeout(function () { var b = el.getAttribute('src') || ''; el.src = b.replace(/&r=\d+/, '') + '&r=' + Date.now(); }, 1200 + Math.random() * 1500); return; }
     el.style.visibility = 'hidden';
   };
-  function img(src) { var o = String(src || '').trim(); if (/^\/\//.test(o)) o = 'https:' + o; src = picUrl(o); return src ? '<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(src) + '" onerror="__tvbImgErr(this)" data-o="' + esc(/@(Referer|User-Agent|Cookie|Origin)=/i.test(o) ? src : o) + '">' : ''; }
+  function img(src) { var o = String(src || '').trim(); if (/^\/\//.test(o)) o = 'https:' + o; src = picUrl(o); return src ? '<img loading="lazy" decoding="async" referrerpolicy="no-referrer" src="' + esc(src) + '" onload="this.classList.add(\'ld\')" onerror="__tvbImgErr(this)" data-o="' + esc(/@(Referer|User-Agent|Cookie|Origin)=/i.test(o) ? src : o) + '">' : ''; }
   function vodCard(v, site, siteName) {
     return '<div class="vod" tabindex="0" data-site="' + esc(site) + '" data-id="' + esc(v.vod_id) + '" data-name="' + esc(v.vod_name) + '" data-pic="' + esc(v.vod_pic) + '">' +
       '<div class="pic">' + img(v.vod_pic) + (siteName ? '<span class="site">' + esc(siteName) + '</span>' : '') + (v.vod_remarks ? '<span class="rm">' + esc(v.vod_remarks) + '</span>' : '') + '</div>' +
@@ -127,6 +128,7 @@
   function route() {
     if (cleanup) { try { cleanup(); } catch (e) { } cleanup = null; }
     document.body.classList.remove('has-hero');
+    app.classList.remove('page-in'); void app.offsetWidth; app.classList.add('page-in');
     window.scrollTo(0, 0);
     var h = parseHash(); markNav();
     if (h.path === '/search') return viewSearch(h.q.wd);
@@ -189,7 +191,9 @@
       }
       function auto() { clearInterval(timer); timer = setInterval(function () { if (!$('#hero')) return clearInterval(timer); show(i + 1); }, 7000); }
       $('#heroDots').onclick = function (e) { var k = e.target.getAttribute('data-k'); if (k != null) { show(+k); auto(); } };
-      hero.onmouseenter = function () { clearInterval(timer); }; hero.onmouseleave = auto;
+      hero.onmouseenter = function () { clearInterval(timer); hero.classList.add('hold'); };
+      hero.onmouseleave = function () { hero.classList.remove('hold'); hero.style.setProperty('--rx', '0deg'); hero.style.setProperty('--ry', '0deg'); show(i); auto(); };
+      hero.onmousemove = function (e) { var r = hero.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5; hero.style.setProperty('--rx', (-y * 6).toFixed(2) + 'deg'); hero.style.setProperty('--ry', (x * 10 - 8).toFixed(2) + 'deg'); hero.style.setProperty('--px', (x * -24).toFixed(1) + 'px'); hero.style.setProperty('--py', (y * -16).toFixed(1) + 'px'); };
       show(0); auto();
       var oc = cleanup; cleanup = function () { clearInterval(timer); if (oc) oc(); };
     }).catch(function () { hero.classList.add('hidden'); });
@@ -203,9 +207,10 @@
       w.querySelector('.r').onclick = function () { st.scrollBy({ left: st.clientWidth * .85, behavior: 'smooth' }); };
     });
   }
+  function skel(n) { var h = ''; for (var k = 0; k < n; k++) h += '<div class="vod skel"><div class="pic"></div><div class="nm"></div><div class="sub"></div></div>'; return h; }
   function viewTvHome() {
     app.innerHTML = heroHtml() + '<div id="rows"><div class="hrow hidden" id="contRow"><div class="hd"><b>继续观看</b><a href="#/history">全部 ›</a></div><div class="strip" id="contStrip"></div></div>' +
-      HOME_ROWS.map(function (r) { return '<div class="hrow"><div class="hd"><b>' + esc(r[1]) + '</b><a href="#/cat?' + qs({ t: r[2], c: r[0] }) + '">更多 ›</a></div><div class="strip" data-c="' + r[0] + '"><div class="muted">加载中…</div></div></div>'; }).join('') + '</div>';
+      HOME_ROWS.map(function (r) { return '<div class="hrow"><div class="hd"><b>' + esc(r[1]) + '</b><a href="#/cat?' + qs({ t: r[2], c: r[0] }) + '">更多 ›</a></div><div class="strip" data-c="' + r[0] + '">' + skel(9) + '</div></div>'; }).join('') + '</div>';
     bindDb($('#rows')); stripArrows($('#rows')); document.body.classList.add('has-hero'); initHero();
     api('/api/history').then(function (j) {
       var l = (j.list || []).slice(0, 15); if (!l.length) return;
@@ -225,7 +230,7 @@
   function viewCat(q) {
     var t = DB_CATS[q.t] ? q.t : 'movie', cat = DB_CATS[t];
     var c = q.c && cat.subs.some(function (x) { return x[0] === q.c; }) ? q.c : cat.subs[0][0];
-    app.innerHTML = '<div class="tabs" id="subs">' + cat.subs.map(function (x) { return '<span class="tab' + (x[0] === c ? ' on' : '') + '" tabindex="0" data-c="' + x[0] + '">' + esc(x[1]) + '</span>'; }).join('') + '</div><div class="grid" id="grid"><div class="muted">加载中…</div></div><button class="more ghost hidden" id="moreBtn">加载更多</button>';
+    app.innerHTML = '<div class="tabs" id="subs">' + cat.subs.map(function (x) { return '<span class="tab' + (x[0] === c ? ' on' : '') + '" tabindex="0" data-c="' + x[0] + '">' + esc(x[1]) + '</span>'; }).join('') + '</div><div class="grid" id="grid">' + skel(18) + '</div><button class="more ghost hidden" id="moreBtn">加载更多</button>';
     var grid = $('#grid'); bindDb(grid);
     var st = { start: 0, total: 0, loading: false };
     $('#subs').onclick = function (e) { var x = e.target.closest('.tab'); if (x) go('/cat', { t: t, c: x.getAttribute('data-c') }); };
@@ -264,6 +269,11 @@
     });
     if (best) { e.preventDefault(); best.focus(); best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
   });
+  // staggered entrance for cards as they are inserted
+  if (window.MutationObserver) new MutationObserver(function (ms) {
+    var seen = 0;
+    ms.forEach(function (m) { [].forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1 && n.classList.contains('vod') && !n.classList.contains('skel')) { n.style.setProperty('--i', Math.min(seen++, 14)); n.classList.add('rise'); } }); });
+  }).observe(app, { childList: true, subtree: true });
   var onTopScroll = function () { document.body.classList.toggle('scrolled', window.scrollY > 30); };
   window.addEventListener('scroll', onTopScroll, { passive: true }); onTopScroll();
   setInterval(function () { var c = $('#clock'); if (c) { var d = new Date(); c.textContent = (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(); } }, 10000);
@@ -394,7 +404,7 @@
   }
 
   function viewFav() {
-    app.innerHTML = '<div class="bar"><b>我的收藏</b></div><div class="grid" id="grid"><div class="muted">加载中…</div></div>';
+    app.innerHTML = '<div class="bar"><b>我的收藏</b></div><div class="grid" id="grid">' + skel(12) + '</div>';
     api('/api/fav').then(function (j) {
       $('#grid').innerHTML = j.list.map(function (f) {
         var repo = f.site.split('|')[0], key = f.site.slice(repo.length + 1);
