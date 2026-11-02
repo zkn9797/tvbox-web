@@ -241,7 +241,7 @@ main{max-width:1600px;padding:16px 24px 40px}
   .hero-in{padding:16px 18px 44px;flex-direction:column-reverse;align-items:flex-start;gap:16px}
   .hero-poster{display:none}
   .hero-bg{filter:blur(10px) saturate(140%) brightness(.6);inset:-12px}
-  .pref{font-size:0;gap:0}
+  .pref{font-size:0;gap:0}.pref select{font-size:12px}
   .hero-dots{left:18px}
   .hero-shade{background:linear-gradient(0deg,var(--bg) 0%,rgba(11,12,16,.55) 60%,rgba(11,12,16,.35) 100%)}
   .hrow .hd b{font-size:17px}
