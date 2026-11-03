@@ -518,7 +518,7 @@
     };
     app.innerHTML = '<div class="dbg" id="dbg"></div><div class="detail"><div><div class="player" id="pl"><video id="vd" controls playsinline webkit-playsinline x5-playsinline x5-video-player-type="h5" x5-video-player-fullscreen="true" x-webkit-airplay="allow" preload="auto" referrerpolicy="no-referrer"></video>' +
       '<div class="ov"><span id="nowp"></span><span id="srcinfo" class="muted"></span></div><div class="msg hidden" id="pmsg"></div><div class="qb hidden" id="qb"><span class="qb-dot"></span><b id="qbSite"></b><span class="qb-res" id="qbRes"></span><span class="qb-net" id="qbNet"></span></div></div>' +
-      '<div class="pbtns"><button id="bPrev">上一集</button><button id="bNext">下一集</button><button id="bSwitch">换源</button><button id="bFav">☆ 收藏</button><button id="bFs">全屏</button><select id="bRate"><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option><option value="0.75">0.75x</option></select></div>' +
+      '<div class="pbtns"><button id="bPrev">上一集</button><button id="bNext">下一集</button><button id="bFav">☆ 收藏</button><button id="bFs">全屏</button><select id="bRate"><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option><option value="0.75">0.75x</option></select></div>' +
       '<div id="srcPanel" class="srcpanel hidden"></div>' +
       '<div class="info" id="info"><h1>' + esc(q.name || '加载中…') + '</h1></div></div>' +
       '<div><div class="sec"><span>片源</span><span class="muted" id="srcsInfo"></span></div><div class="srcs" id="srcs"><div class="muted">查找中…</div></div><div class="sec sm hidden" id="linesHd"><span>本源线路</span><span class="muted" id="lineInfo"></span></div><div class="tabs hidden" id="lines"></div><div class="sec"><span>选集</span><a href="javascript:void 0" id="rev">倒序</a></div><div class="eps" id="eps"><div class="muted">加载中…</div></div></div></div>';
@@ -637,7 +637,7 @@
         return (b === cur) - (a === cur) || ((b.ok === true) - (a.ok === true)) || ((a.ok === false) - (b.ok === false)) || ((b.dir || 0) - (a.dir || 0)) || (srcTier(b.q) - srcTier(a.q)) || ((a.ms || 9e9) - (b.ms || 9e9));
       });
       box.innerHTML = list.map(function (c) {
-        var i = P.srcs.indexOf(c), on = c === cur, st = c.ok === false ? '<span class="sd bad">不可用</span>' : c.ok ? '<span class="sd d' + (c.dir || 0) + '">' + (c.dir === 2 ? '直连' : c.dir === 1 ? '中转索引' : '中转') + '</span>' : '<span class="sd">' + (c.busy ? '检测中…' : '未检测') + '</span>';
+        var i = P.srcs.indexOf(c), on = c === cur, st = c.ok === false ? '<span class="sd bad">不可用</span>' : c.ok ? '<span class="sd d' + (c.dir || 0) + '"' + (c.dir !== 2 && proxyMap()[c.site] ? ' title="之前直连失败，20 分钟内走中转；点击这一行重试直连"' : '') + '>' + (c.dir === 2 ? '直连' : c.dir === 1 ? '中转索引' : '中转') + '</span>' : '<span class="sd">' + (c.busy ? '检测中…' : '未检测') + '</span>';
         var sp = on && c.bw ? fmtBw(c.bw) : c.ms ? c.ms + 'ms' : '';
         return '<div class="src' + (on ? ' on' : '') + (c.ok === false ? ' bad' : '') + '" data-i="' + i + '" title="' + esc(c.v.vod_name + (c.v.vod_remarks ? ' · ' + c.v.vod_remarks : '')) + '"><b>' + esc(c.siteName) + '</b>' +
           (c.q ? '<em class="lr ' + resCls(c.q) + '">' + resLabel(c.q) + '</em>' : '<em class="lr none">—</em>') + '<span class="sp" title="' + (on && c.bw ? '当前下载速度' : '解析响应时间') + '">' + sp + '</span>' + st + '</div>';
@@ -645,7 +645,10 @@
       var n = list.filter(function (c) { return c.ok; }).length; $('#srcsInfo').textContent = list.length ? n + '/' + list.length + ' 可用' : '';
     }
     $('#srcs').onclick = function (e) {
-      var t = e.target.closest('.src'); if (!t) return; var c = P.srcs[+t.getAttribute('data-i')]; if (!c || c === srcCur()) return;
+      var t = e.target.closest('.src'); if (!t) return; var c = P.srcs[+t.getAttribute('data-i')]; if (!c) return;
+      // a manual pick tries direct again (forgets this source's 20-min relay fallback); clicking the playing relayed row retries it direct
+      var wasRelay = proxyMap()[c.site]; proxyClear(c.site);
+      if (c === srcCur()) { if (wasRelay && c.dir !== 2) { toast('重新尝试直连…'); playCurrent(video.currentTime > 5 ? video.currentTime : 0, '重试直连'); } return; }
       var pos = video.currentTime, epName = curEpName(), epIdx = P.ei; msg('切换到「' + c.siteName + '」…');
       (c.d ? Promise.resolve(c.d) : loadDetail(c.site, c.v.vod_id)).then(function (d) {
         c.d = d; P.site = c.site; P.id = String(c.v.vod_id); P.vod = d.vod; P.lines = d.lines; P.li = 0; P.ei = epMatch(d.lines[0].eps, epName, epIdx);
@@ -794,6 +797,7 @@
     // per source now: one site failing direct used to push every source (and the source race) through the relay
     function proxyMap() { try { localStorage.removeItem('tvb_proxy'); var m = JSON.parse(localStorage.getItem('tvb_proxy2') || '{}'), n = Date.now(), k; for (k in m) if (n - m[k] > 20 * 60e3) delete m[k]; return m; } catch (e) { return {}; } }
     function proxySet(site) { try { var m = proxyMap(); m[site] = Date.now(); localStorage.setItem('tvb_proxy2', JSON.stringify(m)); } catch (e) { } }
+    function proxyClear(site) { try { var m = proxyMap(); if (m[site]) { delete m[site]; localStorage.setItem('tvb_proxy2', JSON.stringify(m)); } } catch (e) { } }
     function preferProxy(site) { return !!proxyMap()[site]; }
     function playCurrent(startAt, reason, forceProxy) {
       var line = P.lines[P.li], ep = line.eps[P.ei];
@@ -880,7 +884,7 @@
     }
 
     // manual source switch panel
-    $('#bSwitch').onclick = function () {
+    var oldSwitchPanel = function () { // replaced by the sources list (user 2026-11-03); kept unused
       var panel = $('#srcPanel');
       if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
       if (!P.vod) return;
