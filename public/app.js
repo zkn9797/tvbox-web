@@ -122,6 +122,25 @@
     $('#searchInput').blur();
   });
   function siteName(k) { var s = state.siteMap[k]; return s ? s.name : k; }
+  // ---- resolution preference by device ----
+  var DEV = (function () {
+    var sw = screen.width || innerWidth, sh = screen.height || innerHeight, dpr = window.devicePixelRatio || 1;
+    var mob = (window.matchMedia && matchMedia('(pointer: coarse)').matches && Math.min(sw, sh) <= 900) || /Android|iPhone|iPod/i.test(UA);
+    return { mobile: mob, big: !mob && Math.max(sw, sh) * dpr >= 3000 };
+  })();
+  function resQ(w, h) { return h ? Math.round(Math.max(h, (w || 0) * 9 / 16)) : 0; }
+  function resLabel(q) { return !q ? '' : q >= 1900 ? '4K' : q >= 1300 ? '2K' : q >= 980 ? '1080P' : q >= 680 ? '720P' : q >= 460 ? '480P' : '标清'; }
+  function resCls(q) { return !q ? '' : q >= 1300 ? 'uhd' : q >= 980 ? 'fhd' : q >= 680 ? 'hd' : 'sd'; }
+  // how well a resolution suits this device: desktop wants 1080P+ (4K only on big screens), phones want 720P–1080P (4K costs data/battery)
+  function resFit(q) { if (!q) return 0; if (DEV.mobile) return q >= 1300 ? 8 : q >= 980 ? 30 : q >= 680 ? 24 : -15; return q >= 1900 ? (DEV.big ? 40 : 26) : q >= 1300 ? 32 : q >= 980 ? 30 : q >= 680 ? -5 : -20; }
+  var RES_KEY = 'tvb_res';
+  function resMap() { try { return JSON.parse(localStorage.getItem(RES_KEY) || '{}'); } catch (e) { return {}; } }
+  function resGet(site, flag, exact) { var m = resMap(), x = m[site + '|' + flag] || (exact ? null : m[site + '|*']); return x && Date.now() - x.t < 30 * 864e5 ? x.q : 0; }
+  function resSet(site, flag, q) {
+    if (!q) return; var m = resMap(), now = Date.now(); m[site + '|' + flag] = { q: q, t: now }; m[site + '|*'] = { q: q, t: now };
+    var ks = Object.keys(m); if (ks.length > 400) ks.sort(function (a, b) { return m[a].t - m[b].t; }).slice(0, ks.length - 400).forEach(function (k) { delete m[k]; });
+    try { localStorage.setItem(RES_KEY, JSON.stringify(m)); } catch (e) { }
+  }
   function kindLabel(s) { return s.supported ? '' : (s.kind === 'csp' ? ' [jar,未启用运行时]' : s.kind === 'py' ? ' [py,不支持]' : ' [不支持]'); }
 
   // ---------------- views ----------------
@@ -493,7 +512,7 @@
       hls: null, mts: null, tried: {}, switching: false, resumeAt: 0, stallTimer: null, startTimer: null, lastT: 0, saveT: 0, destroyed: false, playToken: 0,
     };
     app.innerHTML = '<div class="dbg" id="dbg"></div><div class="detail"><div><div class="player" id="pl"><video id="vd" controls playsinline webkit-playsinline x5-playsinline x5-video-player-type="h5" x5-video-player-fullscreen="true" x-webkit-airplay="allow" preload="auto" referrerpolicy="no-referrer"></video>' +
-      '<div class="ov"><span id="nowp"></span><span id="srcinfo" class="muted"></span></div><div class="msg hidden" id="pmsg"></div></div>' +
+      '<div class="ov"><span id="nowp"></span><span id="srcinfo" class="muted"></span></div><div class="msg hidden" id="pmsg"></div><div class="qb hidden" id="qb"><span class="qb-dot"></span><b id="qbSite"></b><span class="qb-res" id="qbRes"></span><span class="qb-net" id="qbNet"></span></div></div>' +
       '<div class="pbtns"><button id="bPrev">上一集</button><button id="bNext">下一集</button><button id="bSwitch">换源</button><button id="bFav">☆ 收藏</button><button id="bFs">全屏</button><select id="bRate"><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option><option value="0.75">0.75x</option></select></div>' +
       '<div id="srcPanel" class="srcpanel hidden"></div>' +
       '<div class="info" id="info"><h1>' + esc(q.name || '加载中…') + '</h1></div></div>' +
@@ -560,8 +579,43 @@
       $('#nowp').textContent = v.vod_name;
     }
     var reversed = false;
+    function lineChip(flag) { var q = resGet(P.site, flag, true); return q ? ' <em class="lr ' + resCls(q) + '">' + resLabel(q) + '</em>' : ''; }
+    function updLineChips() { [].forEach.call($('#lines').children, function (t) { var l = P.lines[+t.getAttribute('data-i')]; if (!l) return; var e = t.querySelector('.lr'); if (e) e.remove(); t.insertAdjacentHTML('beforeend', lineChip(l.flag)); }); }
+    // quality badge on the player: source · resolution · network
+    var qbT = null;
+    function qbShow(src, provisional) {
+      var line = P.lines[P.li] || {}, b = $('#qb'); if (!b) return;
+      $('#qbSite').textContent = siteName(P.site) + (line.flag && line.flag !== '-' ? ' · ' + line.flag : '');
+      if (provisional !== undefined) setRes(provisional, true);
+      if (src) $('#qbNet').textContent = (src.mode === 'direct' ? '直连' : src.mode === 'local' ? '本地' : '代理') + (src.ms != null ? ' ' + src.ms + 'ms' : '');
+      b.classList.remove('hidden', 'mini'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+      clearTimeout(qbT); qbT = setTimeout(function () { b.classList.add('mini'); }, 6000);
+    }
+    function setRes(q, guess) {
+      var e = $('#qbRes'); if (!e) return;
+      e.className = 'qb-res ' + resCls(q) + (guess ? ' guess' : ''); e.textContent = q ? resLabel(q) : '检测中';
+      e.title = q ? (guess ? '索引标称 ' : '实际 ') + q + 'p' : '';
+    }
+    video.addEventListener('resize', onVidRes); video.addEventListener('loadedmetadata', onVidRes);
+    function onVidRes() {
+      var q = resQ(video.videoWidth, video.videoHeight); if (!q) return;
+      var line = P.lines[P.li]; if (line) { resSet(P.site, line.flag, q); updLineChips(); }
+      setRes(q, false); $('#qbRes').title = '实际 ' + video.videoWidth + '×' + video.videoHeight;
+    }
+    // background: learn the resolution of the other lines of this title (cached plays, so switching later is instant)
+    function probeLines() {
+      var me = P.playToken, site = P.site;
+      P.lines.slice(0, 8).forEach(function (l, i) {
+        if (i === P.li || resGet(site, l.flag, true)) return;
+        var ep = l.eps[epMatch(l.eps, curEpName(), P.ei)] || l.eps[0]; if (!ep || !ep.url) return;
+        api('/api/play?' + playQs(site, l.flag, ep.url), { timeout: 12000 }).then(function (r) {
+          if (P.destroyed || site !== P.site) return; if (r.res) { resSet(site, l.flag, resQ(r.res.w, r.res.h)); updLineChips(); }
+        }).catch(function () { });
+      });
+    }
+    function playQs(site, flag, id, forceProxy) { return qs({ repo: P.repo, site: site, flag: flag, id: id, native: useNativeHls() && IS_IOS ? 1 : '', https: location.protocol === 'https:' ? 1 : '', proxy: forceProxy || preferProxy() ? 1 : '' }); }
     function renderLines() {
-      $('#lines').innerHTML = P.lines.map(function (l, i) { return '<span class="tab' + (i === P.li ? ' on' : '') + (P.tried[P.site + '|' + P.id + '|' + l.flag] === 'bad' ? ' bad' : '') + '" data-i="' + i + '">' + esc(l.flag) + ' (' + l.eps.length + ')</span>'; }).join('');
+      $('#lines').innerHTML = P.lines.map(function (l, i) { return '<span class="tab' + (i === P.li ? ' on' : '') + (P.tried[P.site + '|' + P.id + '|' + l.flag] === 'bad' ? ' bad' : '') + '" data-i="' + i + '">' + esc(l.flag) + ' (' + l.eps.length + ')' + lineChip(l.flag) + '</span>'; }).join('');
       renderEps();
     }
     function renderEps() {
@@ -670,8 +724,12 @@
       msg('解析中…'); $('#srcinfo').textContent = siteName(P.site) + ' · ' + line.flag;
       $('#lineInfo').textContent = '';
       var t0 = Date.now();
-      return api('/api/play?' + qs({ repo: P.repo, site: P.site, flag: line.flag, id: ep.url, native: useNativeHls() && IS_IOS ? 1 : '', https: location.protocol === 'https:' ? 1 : '', proxy: forceProxy || preferProxy() ? 1 : '' }), { timeout: 50000 }).then(function (src) {
+      return api('/api/play?' + playQs(P.site, line.flag, ep.url, forceProxy), { timeout: 50000 }).then(function (src) {
         if (token !== P.playToken) return;
+        var gq = src.res ? resQ(src.res.w, src.res.h) : resGet(P.site, line.flag);
+        if (src.res) resSet(P.site, line.flag, gq);
+        qbShow(src, gq || 0);
+        if (!P.probedLines) { P.probedLines = 1; setTimeout(function () { if (!P.destroyed) probeLines(); }, 8000); }
         $('#lineInfo').textContent = [src.mode === 'direct' ? '直连' : src.mode === 'proxy-m3u8' ? '代理索引' : src.mode === 'proxy' ? '代理' : src.mode === 'sniff' ? '嗅探' : '', (Date.now() - t0) + 'ms'].filter(Boolean).join(' · ');
         msg('加载视频…');
         attach(src, startAt, token);
@@ -812,7 +870,7 @@
         if (cands.length >= 8 && !racing) race();
       }, function () { done = true; race(); }, P.repo);
       P.afStop = function () { es.close(); clearTimeout(raceTimer); };
-      function adopt(c, d, h) {
+      function adopt(c, d, h, pr) {
         if (adopted || P.destroyed) return; adopted = true; es.close(); clearTimeout(raceTimer);
         P.site = c.site; P.id = String(c.v.vod_id); P.vod = d.vod; P.lines = d.lines; P.li = 0; P.ei = 0;
         if (!P.vod.vod_pic) P.vod.vod_pic = q.pic;
@@ -823,7 +881,8 @@
           P.ei = epMatch(P.lines[P.li].eps, h.ep_name, h.ep_index); start = h.position || 0;
           if (start > 5) toast('从 ' + fmtTime(start) + ' 继续播放（' + (h.ep_name || '') + '）');
         }
-        toast('片源：' + c.siteName + (c.ms ? '（' + c.ms + 'ms）' : ''));
+        P.probedLines = 0;
+        var rq = pr && pr.q; toast('片源：' + c.siteName + (rq ? ' · ' + resLabel(rq) : '') + (DEV.mobile ? '（手机优先 720P–1080P）' : rq ? '（电脑优先高清）' : ''));
         renderInfo(); renderLines(); favState(); playCurrent(start);
       }
       function race() {
@@ -838,12 +897,31 @@
             return;
           }
           af('正在比较 ' + batch.map(function (c) { return c.siteName; }).join('、') + ' …');
-          var left = batch.length;
+          var pend = batch.length, got = [], fin = false, timer = null;
+          function maybe() { if (!fin && !adopted && pend === 0 && !got.some(function (g) { return !g.done; })) finish(); }
+          function finish() {
+            if (fin || adopted) return; fin = true; clearTimeout(timer);
+            if (!got.length) { racing = false; race(); return; }
+            var ok = got.filter(function (g) { return g.ok; }), pool = ok.length ? ok : got;
+            pool.sort(function (a, b) { return (b.c.s - a.c.s) || (resFit(b.q) - resFit(a.q)) || ((a.ms || 9e9) - (b.ms || 9e9)); });
+            window.__tvbRace = got.map(function (g) { return g.c.siteName + ':' + (g.ok ? (g.q || '?') + '/' + g.ms + 'ms' : g.ok === false ? 'fail' : 'pending'); });
+            adopt(pool[0].c, pool[0].d, h, pool[0]);
+          }
           batch.forEach(function (c) {
             c.tried = true;
-            loadDetail(c.site, c.v.vod_id).then(function (d) { adopt(c, d, h); }).catch(function () {
-              if (--left === 0 && !adopted) { racing = false; race(); }
-            });
+            loadDetail(c.site, c.v.vod_id).then(function (d) {
+              if (adopted || fin) return;
+              if (c.s >= 1000) { adopt(c, d, h); return; } // where the user left off
+              var g = { c: c, d: d, done: false }; got.push(g);
+              if (!timer) timer = setTimeout(finish, 4000);
+              var l = d.lines && d.lines[0], ep = l && l.eps[0];
+              if (!ep || !ep.url) { g.done = true; return maybe(); }
+              var t0 = Date.now();
+              api('/api/play?' + playQs(c.site, l.flag, ep.url), { timeout: 6000 }).then(function (r) {
+                g.ok = true; g.ms = Date.now() - t0; g.q = r.res ? resQ(r.res.w, r.res.h) : resGet(c.site, l.flag);
+                if (r.res) resSet(c.site, l.flag, g.q);
+              }).catch(function () { g.ok = false; }).then(function () { g.done = true; af('正在比较清晰度…'); maybe(); });
+            }).catch(function () { }).then(function () { pend--; maybe(); });
           });
         });
       }

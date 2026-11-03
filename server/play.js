@@ -169,6 +169,19 @@ async function peek(url, headers) {
   } catch { return 'media'; }
 }
 
+// best variant of a master playlist: {w,h,bw,n} (n = variant count); null for a media playlist
+function m3u8Res(text) {
+  let best = null, n = 0;
+  for (const m of text.matchAll(/#EXT-X-STREAM-INF:([^\r\n]*)/g)) {
+    n++;
+    const r = /RESOLUTION=(\d+)x(\d+)/i.exec(m[1]), bw = +((/[^-]BANDWIDTH=(\d+)/i.exec(',' + m[1]) || [])[1] || 0);
+    const w = r ? +r[1] : 0, h = r ? +r[2] : 0;
+    if (!best || w * h > best.w * best.h || (w * h === best.w * best.h && bw > best.bw)) best = { w, h, bw };
+  }
+  if (!best || !best.h) return null;
+  best.n = n; return best;
+}
+
 // ---------- resolve ----------
 /**
  * Turn a spider play() result into something the browser can play.
@@ -228,16 +241,17 @@ async function resolve({ cfg, site, flag, id, playRes, client }) {
     const ct = pr.headers['content-type'] || '';
     if (/mpegurl|text|octet/i.test(ct) || type === 'hls') {
       const body = (await readAll(pr.res, 2 * 1024 * 1024)).toString('utf8');
-      if (/^#EXTM3U/.test(body.trim())) type = 'hls';
+      if (/^#EXTM3U/.test(body.trim())) { type = 'hls'; var res = m3u8Res(body); }
       else if (type === 'hls') throw new Error('m3u8 内容无效');
     } else { pr.res.destroy(); }
     if (type === 'hls') {
       const cors = !!pr.headers['access-control-allow-origin'];
       corsCache.set(originOf(pr.url), cors, 3600e3);
       if (pr.url !== url) url = pr.url;
-      if (!force && client.nativeHls && !hasHdr && !mixed) return { url, type, mode: 'direct' };
-      if (!force && !hasHdr && !mixed && cors) return { url, type, mode: 'direct' };
-      return { url: proxyM3u8(url, headers, hasHdr || mixed || force), type, mode: 'proxy-m3u8', origin: url };
+      const rx = res ? { res } : {};
+      if (!force && client.nativeHls && !hasHdr && !mixed) return Object.assign({ url, type, mode: 'direct' }, rx);
+      if (!force && !hasHdr && !mixed && cors) return Object.assign({ url, type, mode: 'direct' }, rx);
+      return Object.assign({ url: proxyM3u8(url, headers, hasHdr || mixed || force), type, mode: 'proxy-m3u8', origin: url }, rx);
     }
   }
   if (type === 'flv') {
