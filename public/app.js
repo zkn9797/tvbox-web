@@ -86,6 +86,7 @@
   });
   $('#menuBtn').onclick = function () { $('#menu').classList.toggle('hidden'); };
   document.addEventListener('click', function (e) { if (!e.target.closest('#menu') && e.target.id !== 'menuBtn') $('#menu').classList.add('hidden'); });
+  window.addEventListener('hashchange', function () { $('#menu').classList.add('hidden'); });
   $('#logoutBtn').onclick = function () { api('/api/logout', { method: 'POST' }).then(function () { location.reload(); }); };
   $('#pwBtn').onclick = function () { $('#pwView').classList.remove('hidden'); };
   $('#pwView [data-close]').onclick = function () { $('#pwView').classList.add('hidden'); };
@@ -168,7 +169,7 @@
   function decodeEnt(t) { var d = document.createElement('textarea'); d.innerHTML = t; return d.value.replace(/\u00a0/g, ' '); }
   function bigPic(p) { return String(p || '').replace('/s_ratio_poster/', '/l_ratio_poster/'); }
   function heroHtml() {
-    return '<section class="hero" id="hero"><div class="hero-bg" id="heroBg"></div><div class="hero-shade"></div><div class="hero-in"><div class="hero-txt" id="heroTxt"></div><div class="hero-poster" id="heroPoster"></div></div><div class="hero-dots" id="heroDots"></div></section>';
+    return '<section class="hero" id="hero"><div class="hero-bg" id="heroBg"></div><div class="hero-shade"></div><div class="hero-in"><div class="hero-txt" id="heroTxt"></div><div class="hero-side"><div class="hero-q" id="heroQ"></div><div class="hero-poster" id="heroPoster"></div></div></div><div class="hero-dots" id="heroDots"></div></section>';
   }
   function initHero() {
     var hero = $('#hero'); if (!hero) return;
@@ -178,6 +179,8 @@
       if (!l.length || !$('#hero')) return;
       var i = 0, timer = null;
       $('#heroDots').innerHTML = l.map(function (_, k) { return '<i data-k="' + k + '"></i>'; }).join('');
+      $('#heroQ').innerHTML = l.map(function (d, k) { return '<div class="hq" data-k="' + k + '"><img src="' + esc(picUrl(d.pic)) + '" alt="" loading="lazy"><b>' + esc(d.title) + '</b></div>'; }).join('');
+      $('#heroQ').onclick = function (e) { var x = e.target.closest('.hq'); if (x) { show(+x.getAttribute('data-k')); auto(); } };
       function show(k) {
         i = (k + l.length) % l.length; var d = l[i], u = picUrl(bigPic(d.pic));
         $('#heroBg').style.backgroundImage = 'url("' + u + '")';
@@ -187,6 +190,7 @@
           '<div class="hero-btns"><button class="btn-play" id="heroPlay">▶ 立即播放</button><a class="btn-glass" href="#/cat?t=movie&c=movie_showing">更多热映</a></div>';
         $('#heroPlay').onclick = function () { go('/detail', { auto: 1, name: d.title, year: d.year, pic: d.pic }); };
         [].forEach.call($('#heroDots').children, function (x, k) { x.classList.toggle('on', k === i); });
+        [].forEach.call($('#heroQ').children, function (x, k) { x.classList.toggle('on', k === i); });
         hero.classList.remove('swap'); void hero.offsetWidth; hero.classList.add('swap');
       }
       function auto() { clearInterval(timer); timer = setInterval(function () { if (!$('#hero')) return clearInterval(timer); show(i + 1); }, 7000); }
