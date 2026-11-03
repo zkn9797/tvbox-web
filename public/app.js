@@ -514,14 +514,14 @@
   function viewDetail(q) {
     var P = {
       repo: q.repo || state.repo, site: q.site, id: q.id, vod: null, lines: [], li: 0, ei: 0,
-      hls: null, mts: null, tried: {}, switching: false, resumeAt: 0, stallTimer: null, startTimer: null, lastT: 0, saveT: 0, destroyed: false, playToken: 0,
+      srcs: [], hls: null, mts: null, tried: {}, switching: false, resumeAt: 0, stallTimer: null, startTimer: null, lastT: 0, saveT: 0, destroyed: false, playToken: 0,
     };
     app.innerHTML = '<div class="dbg" id="dbg"></div><div class="detail"><div><div class="player" id="pl"><video id="vd" controls playsinline webkit-playsinline x5-playsinline x5-video-player-type="h5" x5-video-player-fullscreen="true" x-webkit-airplay="allow" preload="auto" referrerpolicy="no-referrer"></video>' +
       '<div class="ov"><span id="nowp"></span><span id="srcinfo" class="muted"></span></div><div class="msg hidden" id="pmsg"></div><div class="qb hidden" id="qb"><span class="qb-dot"></span><b id="qbSite"></b><span class="qb-res" id="qbRes"></span><span class="qb-net" id="qbNet"></span></div></div>' +
       '<div class="pbtns"><button id="bPrev">上一集</button><button id="bNext">下一集</button><button id="bSwitch">换源</button><button id="bFav">☆ 收藏</button><button id="bFs">全屏</button><select id="bRate"><option value="1">1x</option><option value="1.25">1.25x</option><option value="1.5">1.5x</option><option value="2">2x</option><option value="0.75">0.75x</option></select></div>' +
       '<div id="srcPanel" class="srcpanel hidden"></div>' +
       '<div class="info" id="info"><h1>' + esc(q.name || '加载中…') + '</h1></div></div>' +
-      '<div><div class="sec"><span>线路</span><span class="muted" id="lineInfo"></span></div><div class="tabs" id="lines"></div><div class="sec"><span>选集</span><a href="javascript:void 0" id="rev">倒序</a></div><div class="eps" id="eps"><div class="muted">加载中…</div></div></div></div>';
+      '<div><div class="sec"><span>片源</span><span class="muted" id="srcsInfo"></span></div><div class="srcs" id="srcs"><div class="muted">查找中…</div></div><div class="sec sm hidden" id="linesHd"><span>本源线路</span><span class="muted" id="lineInfo"></span></div><div class="tabs hidden" id="lines"></div><div class="sec"><span>选集</span><a href="javascript:void 0" id="rev">倒序</a></div><div class="eps" id="eps"><div class="muted">加载中…</div></div></div></div>';
     var video = $('#vd'), pl = $('#pl');
     function msg(t) { var m = $('#pmsg'); if (!t) m.classList.add('hidden'); else { m.textContent = t; m.classList.remove('hidden'); } }
 
@@ -606,6 +606,7 @@
     function onVidRes() {
       var q = resQ(video.videoWidth, video.videoHeight); if (!q) return;
       var line = P.lines[P.li]; if (line) { resSet(P.site, line.flag, q); updLineChips(); }
+      var cs = srcCur(); if (cs && cs.q !== q) { cs.q = q; renderSrcs(); }
       setRes(q, false); $('#qbRes').title = '实际 ' + video.videoWidth + '×' + video.videoHeight;
     }
     // background: learn the resolution of the other lines of this title (cached plays, so switching later is instant)
@@ -619,8 +620,73 @@
         }).catch(function () { });
       });
     }
-    function playQs(site, flag, id, forceProxy) { return qs({ repo: P.repo, site: site, flag: flag, id: id, native: useNativeHls() && IS_IOS ? 1 : '', https: location.protocol === 'https:' ? 1 : '', proxy: forceProxy || preferProxy() ? 1 : '' }); }
+    function playQs(site, flag, id, forceProxy) { return qs({ repo: P.repo, site: site, flag: flag, id: id, native: useNativeHls() && IS_IOS ? 1 : '', https: location.protocol === 'https:' ? 1 : '', proxy: forceProxy || preferProxy(site) ? 1 : '' }); }
+    // ---- sources panel (user 2026-11-03): one row per source of this title: name · resolution · speed · 直连/中转; click to switch ----
+    function srcFind(site, id) { return P.srcs.filter(function (c) { return c.site === site && String(c.v.vod_id) === String(id); })[0]; }
+    function srcCur() {
+      var c = srcFind(P.site, P.id);
+      if (!c && P.vod) { c = { site: P.site, siteName: siteName(P.site), v: { vod_id: P.id, vod_name: P.vod.vod_name }, s: 100 }; P.srcs.push(c); }
+      return c;
+    }
+    function dirOf(r) { return r.mode === 'direct' ? 2 : (r.mode === 'proxy-m3u8' && !r.sp) || r.mode === 'local' ? 1 : 0; }
+    function srcTier(q) { return !q ? 1 : q >= (DEV.mobile ? 680 : 980) ? 2 : 0; }
+    function fmtBw(b) { return b >= 1e6 ? (b / 8e6).toFixed(1) + ' MB/s' : Math.round(b / 8e3) + ' KB/s'; }
+    function renderSrcs() {
+      var box = $('#srcs'); if (!box) return; var cur = srcCur();
+      var list = P.srcs.filter(function (c) { return c.s >= 100 || c === cur; }).sort(function (a, b) {
+        return (b === cur) - (a === cur) || ((b.ok === true) - (a.ok === true)) || ((a.ok === false) - (b.ok === false)) || ((b.dir || 0) - (a.dir || 0)) || (srcTier(b.q) - srcTier(a.q)) || ((a.ms || 9e9) - (b.ms || 9e9));
+      });
+      box.innerHTML = list.map(function (c) {
+        var i = P.srcs.indexOf(c), on = c === cur, st = c.ok === false ? '<span class="sd bad">不可用</span>' : c.ok ? '<span class="sd d' + (c.dir || 0) + '">' + (c.dir === 2 ? '直连' : c.dir === 1 ? '中转索引' : '中转') + '</span>' : '<span class="sd">' + (c.busy ? '检测中…' : '未检测') + '</span>';
+        var sp = on && c.bw ? fmtBw(c.bw) : c.ms ? c.ms + 'ms' : '';
+        return '<div class="src' + (on ? ' on' : '') + (c.ok === false ? ' bad' : '') + '" data-i="' + i + '" title="' + esc(c.v.vod_name + (c.v.vod_remarks ? ' · ' + c.v.vod_remarks : '')) + '"><b>' + esc(c.siteName) + '</b>' +
+          (c.q ? '<em class="lr ' + resCls(c.q) + '">' + resLabel(c.q) + '</em>' : '<em class="lr none">—</em>') + '<span class="sp" title="' + (on && c.bw ? '当前下载速度' : '解析响应时间') + '">' + sp + '</span>' + st + '</div>';
+      }).join('') || '<div class="muted">查找中…</div>';
+      var n = list.filter(function (c) { return c.ok; }).length; $('#srcsInfo').textContent = list.length ? n + '/' + list.length + ' 可用' : '';
+    }
+    $('#srcs').onclick = function (e) {
+      var t = e.target.closest('.src'); if (!t) return; var c = P.srcs[+t.getAttribute('data-i')]; if (!c || c === srcCur()) return;
+      var pos = video.currentTime, epName = curEpName(), epIdx = P.ei; msg('切换到「' + c.siteName + '」…');
+      (c.d ? Promise.resolve(c.d) : loadDetail(c.site, c.v.vod_id)).then(function (d) {
+        c.d = d; P.site = c.site; P.id = String(c.v.vod_id); P.vod = d.vod; P.lines = d.lines; P.li = 0; P.ei = epMatch(d.lines[0].eps, epName, epIdx);
+        if (!P.vod.vod_pic) P.vod.vod_pic = q.pic;
+        renderInfo(); renderLines(); favState(); playCurrent(pos > 5 ? pos : 0, '手动换源');
+      }).catch(function (er) { c.ok = false; renderSrcs(); toast('该来源打开失败：' + er.message); msg(''); });
+    };
+    // live download speed of the playing source (hls.js bandwidth estimate)
+    var bwT = setInterval(function () { if (P.destroyed) return clearInterval(bwT); var c = srcCur(); if (c && P.hls && P.hls.bandwidthEstimate > 0 && !video.paused) { c.bw = P.hls.bandwidthEstimate; var r = $('#srcs .src.on .sp'); if (r) { r.textContent = fmtBw(c.bw); r.title = '当前下载速度'; } } }, 4000);
+    // background: find every source of this title and test each one (same episode), so the list fills in while you watch
+    function probeSrcs() {
+      if (P.srcProbed || !P.vod) return; P.srcProbed = 1;
+      var name = P.dbName || P.vod.vod_name, nt = normTitle(name), year = String(P.dbYear || P.vod.vod_year || '').slice(0, 4), queue = [], running = 0;
+      function add(site, siteName_, v, ms) {
+        if (normTitle(v.vod_name) !== nt || srcFind(site, v.vod_id)) return;
+        var vy = String(v.vod_year || '').slice(0, 4); if (year && vy && vy !== year) return;
+        P.srcs.push({ site: site, siteName: siteName_, v: v, s: 100, sms: ms });
+      }
+      function pump() {
+        if (P.destroyed) return;
+        while (running < 3) {
+          var c = P.srcs.filter(function (x) { return x.s >= 100 && x.ok === undefined && !x.busy && x !== srcCur(); })[0]; if (!c) return;
+          running++; c.busy = true; renderSrcs(); test(c).then(function () { running--; renderSrcs(); pump(); });
+        }
+      }
+      function test(c) {
+        var epName = curEpName(), epIdx = P.ei;
+        return (c.d ? Promise.resolve(c.d) : loadDetail(c.site, c.v.vod_id)).then(function (d) {
+          c.d = d; var l = d.lines[0], ep = l && l.eps[epMatch(l.eps, epName, epIdx)]; if (!ep || !ep.url) throw new Error('no ep');
+          var t0 = Date.now();
+          return api('/api/play?' + playQs(c.site, l.flag, ep.url), { timeout: 10000 }).then(function (r) {
+            c.ok = true; c.ms = Date.now() - t0; c.dir = dirOf(r); c.q = r.res ? resQ(r.res.w, r.res.h) : resGet(c.site, l.flag); if (r.res) resSet(c.site, l.flag, c.q);
+          });
+        }).catch(function () { c.ok = false; }).then(function () { c.busy = false; });
+      }
+      var es = streamSearch(name, function (r) { (r.list || []).forEach(function (v) { add(r.site, r.siteName, v, r.ms); }); renderSrcs(); pump(); }, function () { pump(); }, P.repo);
+      var old = cleanup; cleanup = function () { es.close(); old && old(); };
+      pump();
+    }
     function renderLines() {
+      var many = P.lines.length > 1; $('#lines').classList.toggle('hidden', !many); $('#linesHd').classList.toggle('hidden', !many); renderSrcs();
       $('#lines').innerHTML = P.lines.map(function (l, i) { return '<span class="tab' + (i === P.li ? ' on' : '') + (P.tried[P.site + '|' + P.id + '|' + l.flag] === 'bad' ? ' bad' : '') + '" data-i="' + i + '">' + esc(l.flag) + ' (' + l.eps.length + ')' + lineChip(l.flag) + '</span>'; }).join('');
       renderEps();
     }
@@ -674,7 +740,7 @@
       var fail = function (why) {
         if (token !== P.playToken) return;
         // direct link failed in this browser (geo/IP-bound sign, DNS, CORS): retry the same source through the router once
-        if (src.mode === 'direct' && !started) { try { localStorage.setItem('tvb_proxy', String(Date.now())); } catch (e) { } toast('直连失败，改由中转重试…'); playCurrent(startAt, 'proxy', true); return; }
+        if (src.mode === 'direct' && !started) { proxySet(P.site); toast('直连失败，改由中转重试…'); playCurrent(startAt, 'proxy', true); return; }
         onFail(why);
       };
       P.startTimer = setTimeout(function () { if (!started) fail('加载超时'); }, 25000);
@@ -725,7 +791,10 @@
     video.addEventListener('ended', function () { saveHistory(true); if (nextEp()) toast('自动播放下一集'); });
 
     // a direct-play failure makes the next plays go via the NAS for 20 minutes only (it used to stick forever)
-    function preferProxy() { try { var t = +localStorage.getItem('tvb_proxy') || 0; if (t > 1 && Date.now() - t < 20 * 60e3) return true; if (t) localStorage.removeItem('tvb_proxy'); return false; } catch (e) { return false; } }
+    // per source now: one site failing direct used to push every source (and the source race) through the relay
+    function proxyMap() { try { localStorage.removeItem('tvb_proxy'); var m = JSON.parse(localStorage.getItem('tvb_proxy2') || '{}'), n = Date.now(), k; for (k in m) if (n - m[k] > 20 * 60e3) delete m[k]; return m; } catch (e) { return {}; } }
+    function proxySet(site) { try { var m = proxyMap(); m[site] = Date.now(); localStorage.setItem('tvb_proxy2', JSON.stringify(m)); } catch (e) { } }
+    function preferProxy(site) { return !!proxyMap()[site]; }
     function playCurrent(startAt, reason, forceProxy) {
       var line = P.lines[P.li], ep = line.eps[P.ei];
       var token = ++P.playToken;
@@ -737,7 +806,8 @@
         var gq = src.res ? resQ(src.res.w, src.res.h) : resGet(P.site, line.flag);
         if (src.res) resSet(P.site, line.flag, gq);
         qbShow(src, gq || 0);
-        if (!P.probedLines) { P.probedLines = 1; setTimeout(function () { if (!P.destroyed) probeLines(); }, 8000); }
+        var cs = srcCur(); if (cs) { cs.ok = true; cs.dir = dirOf(src); cs.ms = Date.now() - t0; if (gq) cs.q = gq; cs.bw = 0; renderSrcs(); }
+        if (!P.probedLines) { P.probedLines = 1; setTimeout(function () { if (!P.destroyed) { probeLines(); probeSrcs(); } }, 8000); }
         $('#lineInfo').textContent = [src.mode === 'direct' ? '直连' : src.mode === 'proxy-m3u8' ? '代理索引' : src.mode === 'proxy' ? '代理' : src.mode === 'sniff' ? '嗅探' : '', (Date.now() - t0) + 'ms'].filter(Boolean).join(' · ');
         msg('加载视频…');
         attach(src, startAt, token);
@@ -763,6 +833,7 @@
         }
       }
       // 2) same title on other sites
+      var cs = srcCur(); if (cs) cs.ok = false;
       crossSiteSwitch(pos, why);
     }
 
@@ -861,7 +932,7 @@
       if (q.pic) $('#dbg').style.backgroundImage = 'url("' + picUrl(q.pic).replace(/"/g, '%22') + '")';
       $('#info').innerHTML = (q.pic ? '<div class="iposter">' + img(q.pic) + '</div>' : '') + '<div class="itxt"><h1>' + esc(name) + '</h1><div class="autofind" id="af"><span class="spin"></span>正在「' + esc(repoName) + '」里查找最快的片源…</div></div>';
       msg('查找片源…'); $('#eps').innerHTML = '<div class="muted">查找中…</div>';
-      var cands = [], done = false, racing = false, raceTimer = null, sitesN = 0, adopted = false, relayed = [], rounds = 0;
+      var cands = P.srcs, done = false, racing = false, raceTimer = null, sitesN = 0, adopted = false, relayed = [], rounds = 0;
       function score(v) {
         var t = normTitle(v.vod_name), s;
         if (t === nt) s = 100; else if (t.indexOf(nt) === 0 && t.length - nt.length <= 3) s = 60; else return -1;
@@ -872,7 +943,7 @@
       var hist = api('/api/history').then(function (j) { return (j.list || []).filter(function (h) { return normTitle(h.vod_name) === nt && h.site.split('|')[0] === String(P.repo); })[0]; }).catch(function () { return null; });
       var es = streamSearch(name, function (r) {
         sitesN++;
-        (r.list || []).forEach(function (v) { var sc = score(v); if (sc >= 0) cands.push({ site: r.site, siteName: r.siteName, v: v, s: sc, ms: r.ms }); });
+        (r.list || []).forEach(function (v) { var sc = score(v); if (sc >= 0) cands.push({ site: r.site, siteName: r.siteName, v: v, s: sc, sms: r.ms }); });
         af('已搜索 ' + sitesN + ' 个站点，匹配 ' + cands.length + ' 个片源…');
         if (!raceTimer && cands.some(function (c) { return c.s >= 100; })) raceTimer = setTimeout(race, 1500);
         if (cands.length >= 8 && !racing) race();
@@ -931,7 +1002,7 @@
             loadDetail(c.site, c.v.vod_id).then(function (d) {
               if (adopted || fin) return;
 
-              var g = { c: c, d: d, done: false }; got.push(g);
+              var g = { c: c, d: d, done: false }; got.push(g); c.d = d;
               if (!timer) timer = setTimeout(finish, 4000);
               var l = d.lines && d.lines[0], ep = l && l.eps[0];
               if (!ep || !ep.url) { g.done = true; return maybe(); }
@@ -939,7 +1010,8 @@
               api('/api/play?' + playQs(c.site, l.flag, ep.url), { timeout: 6000 }).then(function (r) {
                 g.ok = true; g.ms = Date.now() - t0; g.dir = r.mode === 'direct' ? 2 : (r.mode === 'proxy-m3u8' && !r.sp) || r.mode === 'local' ? 1 : 0; g.q = r.res ? resQ(r.res.w, r.res.h) : resGet(c.site, l.flag);
                 if (r.res) resSet(c.site, l.flag, g.q);
-              }).catch(function () { g.ok = false; }).then(function () { g.done = true; af('正在比较清晰度…'); maybe(); });
+                c.ok = true; c.ms = g.ms; c.dir = g.dir; c.q = g.q;
+              }).catch(function () { g.ok = false; c.ok = false; }).then(function () { g.done = true; af('正在比较清晰度…'); maybe(); });
             }).catch(function () { }).then(function () { pend--; maybe(); });
           });
         });
