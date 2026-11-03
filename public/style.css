@@ -510,3 +510,7 @@ button.ghost:hover,.pbtns button:hover,.btn-glass:hover{background:var(--glass2)
 .lr{margin-left:6px;padding:1px 6px;font-size:10px;vertical-align:1px}
 .tab.on .lr{background:rgba(255,255,255,.95);color:#ff3d68;box-shadow:none}
 @media(max-width:760px){.qb{left:8px;top:8px;font-size:11px;padding:5px 10px 5px 8px}.qb b{max-width:46vw}}
+/* while a video plays: freeze decorative motion so the GPU/CPU is all the player's */
+body.watching:before,body.watching:after{animation-play-state:paused}
+body.watching .qb-dot{animation:none}
+.qb{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(14,15,20,.72)}

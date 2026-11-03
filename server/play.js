@@ -38,7 +38,7 @@ function untoken(t) {
   if (!p || !s || sign(p) !== s) return null;
   try { return JSON.parse(Buffer.from(p, 'base64url').toString()); } catch { return null; }
 }
-const proxyM3u8 = (url, headers, sp) => `/px/m/${token(url, headers, sp ? { sp: 1 } : null)}/index.m3u8`;
+const proxyM3u8 = (url, headers, sp, up) => `/px/m/${token(url, headers, sp ? { sp: 1 } : up ? { up: 1 } : null)}/index.m3u8`;
 const proxyFile = (url, headers) => {
   const ext = (/\.(\w{2,4})(\?|$)/.exec(new URL(url).pathname) || [])[1] || 'bin';
   return `/px/f/${token(url, headers)}/media.${ext}`;
@@ -251,7 +251,9 @@ async function resolve({ cfg, site, flag, id, playRes, client }) {
       const rx = res ? { res } : {};
       if (!force && client.nativeHls && !hasHdr && !mixed) return Object.assign({ url, type, mode: 'direct' }, rx);
       if (!force && !hasHdr && !mixed && cors) return Object.assign({ url, type, mode: 'direct' }, rx);
-      return Object.assign({ url: proxyM3u8(url, headers, hasHdr || mixed || force), type, mode: 'proxy-m3u8', origin: url }, rx);
+      // only mixed content stands in the way: index via NAS, segments upgraded to https direct if the CDN supports it
+      if (!force && !hasHdr && mixed) return Object.assign({ url: proxyM3u8(url, headers, false, true), type, mode: 'proxy-m3u8', origin: url, sp: false, up: true }, rx);
+      return Object.assign({ url: proxyM3u8(url, headers, hasHdr || mixed || force), type, mode: 'proxy-m3u8', origin: url, sp: !!(hasHdr || mixed || force) }, rx);
     }
   }
   if (type === 'flv') {
@@ -265,14 +267,15 @@ async function resolve({ cfg, site, flag, id, playRes, client }) {
 }
 
 // ---------- proxy handlers ----------
-function rewriteM3u8(text, base, headers, segProxy) {
+function rewriteM3u8(text, base, headers, segProxy, up) {
   const out = [];
   const lines = text.split(/\r?\n/);
   let nextIsPlaylist = false;
   const mapUri = (u, isPl) => {
     const abs = joinUrl(base, u.trim());
-    if (isPl || /\.m3u8(\?|$)/i.test(abs)) return proxyM3u8(abs, headers, segProxy);
-    return segProxy ? proxyFile(abs, headers) : abs;
+    if (isPl || /\.m3u8(\?|$)/i.test(abs)) return proxyM3u8(abs, headers, segProxy, up);
+    if (segProxy) return proxyFile(abs, headers);
+    return up ? abs.replace(/^http:/i, 'https:') : abs;
   };
   for (const line of lines) {
     const l = line.trim();
@@ -299,13 +302,19 @@ async function handleProxy(req, res, kind, tok) {
       const r = await rawRequest(t.u, headers, 'GET', 10000);
       if (r.status >= 400) { r.res.resume(); return sendErr(res, 502, 'upstream ' + r.status); }
       const body = (await readAll(r.res)).toString('utf8');
-      let segProxy = !!t.sp;
+      let segProxy = !!t.sp, up = !!t.up;
       if (!segProxy) {
         // find first media segment and check whether its host allows CORS
         const first = body.split(/\r?\n/).find(l => l && !l.startsWith('#'));
-        if (first && !/\.m3u8(\?|$)/i.test(first)) segProxy = !(await hasCors(joinUrl(r.url, first.trim())));
+        if (first && !/\.m3u8(\?|$)/i.test(first)) {
+          let su = joinUrl(r.url, first.trim());
+          // https page + http segments: let the browser fetch them over https straight from the CDN when the CDN allows it
+          if (up && /^http:/i.test(su)) { su = su.replace(/^http:/i, 'https:'); }
+          else up = false;
+          segProxy = !(await hasCors(su));
+        }
       }
-      const out = rewriteM3u8(body, r.url, headers, segProxy);
+      const out = rewriteM3u8(body, r.url, headers, segProxy, up && !segProxy);
       res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' });
       return res.end(out);
     }

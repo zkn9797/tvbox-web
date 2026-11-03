@@ -587,7 +587,8 @@
       var line = P.lines[P.li] || {}, b = $('#qb'); if (!b) return;
       $('#qbSite').textContent = siteName(P.site) + (line.flag && line.flag !== '-' ? ' · ' + line.flag : '');
       if (provisional !== undefined) setRes(provisional, true);
-      if (src) $('#qbNet').textContent = (src.mode === 'direct' ? '直连' : src.mode === 'local' ? '本地' : '代理') + (src.ms != null ? ' ' + src.ms + 'ms' : '');
+      if (src) $('#qbNet').textContent = (src.mode === 'direct' ? '直连片源' : src.mode === 'local' ? '本地' : src.mode === 'proxy-m3u8' && !src.sp ? 'NAS 改写索引' : 'NAS 中转') + (src.ms != null ? ' · 解析 ' + src.ms + 'ms' : '');
+      $('#qbNet').title = src.mode === 'direct' ? '浏览器直接从片源 CDN 拉流' : '视频经 NAS 上的 tvbox-web 转发（片源要求特殊请求头、不允许跨域，或直连失败）';
       b.classList.remove('hidden', 'mini'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
       clearTimeout(qbT); qbT = setTimeout(function () { b.classList.add('mini'); }, 6000);
     }
@@ -668,7 +669,7 @@
       var fail = function (why) {
         if (token !== P.playToken) return;
         // direct link failed in this browser (geo/IP-bound sign, DNS, CORS): retry the same source through the router once
-        if (src.mode === 'direct' && !started) { try { localStorage.setItem('tvb_proxy', '1'); } catch (e) { } toast('直连失败，改走路由器代理重试…'); playCurrent(startAt, 'proxy', true); return; }
+        if (src.mode === 'direct' && !started) { try { localStorage.setItem('tvb_proxy', String(Date.now())); } catch (e) { } toast('直连失败，改由 NAS 中转重试…'); playCurrent(startAt, 'proxy', true); return; }
         onFail(why);
       };
       P.startTimer = setTimeout(function () { if (!started) fail('加载超时'); }, 25000);
@@ -677,9 +678,10 @@
         if (P.resumeAt > 3 && (!video.duration || P.resumeAt < video.duration - 8)) { try { video.currentTime = P.resumeAt; } catch (e) { } }
       };
       video.onplaying = onStart; video.oncanplay = onStart;
+      if (!video._w) { video._w = 1; video.addEventListener('playing', function () { document.body.classList.add('watching'); }); video.addEventListener('pause', function () { document.body.classList.remove('watching'); }); }
       video.onerror = function () { var e = video.error; fail('播放错误' + (e ? ' (' + e.code + ')' : '')); };
       if (src.type === 'hls' && !useNativeHls() && window.Hls && Hls.isSupported()) {
-        var hls = new Hls({ maxBufferLength: 30, maxMaxBufferLength: 60, backBufferLength: 30, enableWorker: true, lowLatencyMode: false, fragLoadingMaxRetry: 3, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, startPosition: P.resumeAt > 3 ? P.resumeAt : -1 });
+        var hls = new Hls({ debug: (function () { try { return localStorage.getItem('tvb_debug') === '1'; } catch (e) { return false; } })(), defaultAudioCodec: 'mp4a.40.2', maxBufferLength: 30, maxMaxBufferLength: 60, backBufferLength: 30, enableWorker: true, lowLatencyMode: false, fragLoadingMaxRetry: 3, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2, startPosition: P.resumeAt > 3 ? P.resumeAt : -1 });
         P.hls = hls; var mediaRecovered = false;
         hls.on(Hls.Events.ERROR, function (ev, d) {
           if (!d.fatal) return;
@@ -717,7 +719,8 @@
     video.addEventListener('pause', function () { saveHistory(true); });
     video.addEventListener('ended', function () { saveHistory(true); if (nextEp()) toast('自动播放下一集'); });
 
-    function preferProxy() { try { return localStorage.getItem('tvb_proxy') === '1'; } catch (e) { return false; } }
+    // a direct-play failure makes the next plays go via the NAS for 20 minutes only (it used to stick forever)
+    function preferProxy() { try { var t = +localStorage.getItem('tvb_proxy') || 0; if (t > 1 && Date.now() - t < 20 * 60e3) return true; if (t) localStorage.removeItem('tvb_proxy'); return false; } catch (e) { return false; } }
     function playCurrent(startAt, reason, forceProxy) {
       var line = P.lines[P.li], ep = line.eps[P.ei];
       var token = ++P.playToken;
@@ -853,7 +856,7 @@
       if (q.pic) $('#dbg').style.backgroundImage = 'url("' + picUrl(q.pic).replace(/"/g, '%22') + '")';
       $('#info').innerHTML = (q.pic ? '<div class="iposter">' + img(q.pic) + '</div>' : '') + '<div class="itxt"><h1>' + esc(name) + '</h1><div class="autofind" id="af"><span class="spin"></span>正在「' + esc(repoName) + '」里查找最快的片源…</div></div>';
       msg('查找片源…'); $('#eps').innerHTML = '<div class="muted">查找中…</div>';
-      var cands = [], done = false, racing = false, raceTimer = null, sitesN = 0, adopted = false;
+      var cands = [], done = false, racing = false, raceTimer = null, sitesN = 0, adopted = false, relayed = [], rounds = 0;
       function score(v) {
         var t = normTitle(v.vod_name), s;
         if (t === nt) s = 100; else if (t.indexOf(nt) === 0 && t.length - nt.length <= 3) s = 60; else return -1;
@@ -870,14 +873,16 @@
         if (cands.length >= 8 && !racing) race();
       }, function () { done = true; race(); }, P.repo);
       P.afStop = function () { es.close(); clearTimeout(raceTimer); };
+      function pickRelayed() { var pool = relayed.slice(); relayed = []; pool.sort(function (a, b) { return (b.c.s - a.c.s) || (tier(b.q) - tier(a.q)) || ((a.ms || 9e9) - (b.ms || 9e9)); }); hist.then(function (h) { adopt(pool[0].c, pool[0].d, h, pool[0]); }); }
+      function tier(q) { return !q ? 1 : q >= (DEV.mobile ? 680 : 980) ? 2 : 0; }
       function adopt(c, d, h, pr) {
         if (adopted || P.destroyed) return; adopted = true; es.close(); clearTimeout(raceTimer);
         P.site = c.site; P.id = String(c.v.vod_id); P.vod = d.vod; P.lines = d.lines; P.li = 0; P.ei = 0;
         if (!P.vod.vod_pic) P.vod.vod_pic = q.pic;
         P.cands = cands.filter(function (x) { return x !== c; });
         var start = 0;
-        if (h && h.site === P.repo + '|' + P.site && h.vod_id === P.id) {
-          var li = -1; P.lines.forEach(function (l, i) { if (li < 0 && l.flag === h.flag) li = i; }); if (li >= 0) P.li = li;
+        if (h) { // resume the episode and position by title, whichever source plays it
+          if (h.site === P.repo + '|' + P.site && h.vod_id === P.id) { var li = -1; P.lines.forEach(function (l, i) { if (li < 0 && l.flag === h.flag) li = i; }); if (li >= 0) P.li = li; }
           P.ei = epMatch(P.lines[P.li].eps, h.ep_name, h.ep_index); start = h.position || 0;
           if (start > 5) toast('从 ' + fmtTime(start) + ' 继续播放（' + (h.ep_name || '') + '）');
         }
@@ -888,11 +893,12 @@
       function race() {
         if (racing || adopted) return; racing = true;
         hist.then(function (h) {
-          if (h) { var key = h.site.slice(String(P.repo).length + 1), hc = cands.filter(function (c) { return c.site === key && String(c.v.vod_id) === h.vod_id; })[0]; if (hc) { cands.splice(cands.indexOf(hc), 1); cands.unshift(hc); hc.s += 1000; } }
+          // no source memory (user 2026-11-03): every play races for the fastest source that meets the resolution bar
           cands.sort(function (a, b) { return (b.s - a.s) || ((state.siteMap[a.site] ? state.siteMap[a.site].score : 3000) - (state.siteMap[b.site] ? state.siteMap[b.site].score : 3000)); });
           var batch = cands.filter(function (c) { return !c.tried; }).slice(0, 4);
           if (!batch.length) {
             racing = false;
+            if (relayed.length && (done || rounds >= 3)) { pickRelayed(); return; } // no direct source anywhere: fall back to the NAS-relayed best
             if (done) { msg('没有找到可播放的片源'); af('在「' + repoName + '」里没有找到「' + name + '」，可以换一个首选源或手动搜索。'); $('#eps').innerHTML = '<div class="empty"><a href="#/search?' + qs({ wd: name }) + '">手动搜索「' + esc(name) + '」</a></div>'; }
             return;
           }
@@ -903,7 +909,14 @@
             if (fin || adopted) return; fin = true; clearTimeout(timer);
             if (!got.length) { racing = false; race(); return; }
             var ok = got.filter(function (g) { return g.ok; }), pool = ok.length ? ok : got;
-            pool.sort(function (a, b) { return (b.c.s - a.c.s) || (resFit(b.q) - resFit(a.q)) || ((a.ms || 9e9) - (b.ms || 9e9)); });
+            rounds++;
+            // nothing in this batch plays direct: keep them as backups and race the next batch, unless we've looked enough
+            if (!pool.some(function (g) { return g.dir; }) && rounds < 3 && cands.some(function (c) { return !c.tried; })) {
+              relayed = relayed.concat(ok); af('这一批都需要 NAS 中转，继续找能直连的…'); racing = false; race(); return;
+            }
+            pool = pool.concat(relayed);
+            // title match first; then direct-play sources before NAS-relayed ones (user 2026-11-03); then sources meeting this device's resolution bar, fastest first; then unknown resolution by speed; then the rest by resolution
+            pool.sort(function (a, b) { return (b.c.s - a.c.s) || ((b.dir || 0) - (a.dir || 0)) || (tier(b.q) - tier(a.q)) || (tier(a.q) === 0 ? b.q - a.q : 0) || ((a.ms || 9e9) - (b.ms || 9e9)); });
             window.__tvbRace = got.map(function (g) { return g.c.siteName + ':' + (g.ok ? (g.q || '?') + '/' + g.ms + 'ms' : g.ok === false ? 'fail' : 'pending'); });
             adopt(pool[0].c, pool[0].d, h, pool[0]);
           }
@@ -911,14 +924,14 @@
             c.tried = true;
             loadDetail(c.site, c.v.vod_id).then(function (d) {
               if (adopted || fin) return;
-              if (c.s >= 1000) { adopt(c, d, h); return; } // where the user left off
+
               var g = { c: c, d: d, done: false }; got.push(g);
               if (!timer) timer = setTimeout(finish, 4000);
               var l = d.lines && d.lines[0], ep = l && l.eps[0];
               if (!ep || !ep.url) { g.done = true; return maybe(); }
               var t0 = Date.now();
               api('/api/play?' + playQs(c.site, l.flag, ep.url), { timeout: 6000 }).then(function (r) {
-                g.ok = true; g.ms = Date.now() - t0; g.q = r.res ? resQ(r.res.w, r.res.h) : resGet(c.site, l.flag);
+                g.ok = true; g.ms = Date.now() - t0; g.dir = r.mode === 'direct' ? 2 : (r.mode === 'proxy-m3u8' && !r.sp) || r.mode === 'local' ? 1 : 0; g.q = r.res ? resQ(r.res.w, r.res.h) : resGet(c.site, l.flag);
                 if (r.res) resSet(c.site, l.flag, g.q);
               }).catch(function () { g.ok = false; }).then(function () { g.done = true; af('正在比较清晰度…'); maybe(); });
             }).catch(function () { }).then(function () { pend--; maybe(); });
@@ -928,7 +941,7 @@
     }
 
     cleanup = function () {
-      P.destroyed = true; if (P.afStop) P.afStop(); saveHistory(true); destroyEngine();
+      P.destroyed = true; document.body.classList.remove('watching'); if (P.afStop) P.afStop(); saveHistory(true); destroyEngine();
       document.removeEventListener('keydown', onKey); document.removeEventListener('visibilitychange', onHide); window.removeEventListener('pagehide', onHide);
     };
   }
