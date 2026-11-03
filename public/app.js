@@ -140,10 +140,19 @@
     if (h.path === '/cat') return viewCat(h.q);
     return viewTvHome();
   }
+  function moveInd() {
+    var nav = $('#topCats'); if (!nav) return; var ind = nav.querySelector('.ind');
+    if (!ind) { ind = document.createElement('i'); ind.className = 'ind'; nav.appendChild(ind); }
+    var a = nav.querySelector('a.on');
+    if (!a) { ind.style.opacity = 0; return; }
+    ind.style.opacity = 1; ind.style.width = a.offsetWidth + 'px'; ind.style.transform = 'translateX(' + a.offsetLeft + 'px)';
+  }
+  window.addEventListener('resize', function () { moveInd(); });
   function markNav() {
     var h = parseHash(), k = h.path === '/cat' ? (h.q.t || 'movie') : h.path.replace('/', '') || 'home';
     if (h.path === '/detail' || h.path === '/search') k = '';
     [].forEach.call(document.querySelectorAll('#topCats a,#navLinks a[data-k]'), function (a) { a.classList.toggle('on', a.getAttribute('data-k') === k); });
+    moveInd();
   }
 
   // ---------------- TVBox-style home: douban recommendations ----------------
@@ -162,6 +171,8 @@
   function bindDb(root) {
     root.addEventListener('click', function (e) {
       var c = e.target.closest ? e.target.closest('.vod') : null; if (!c) return;
+      [].forEach.call(document.querySelectorAll('.vt-poster'), function (x) { x.classList.remove('vt-poster'); });
+      var pc = c.querySelector('.pic'); if (pc) pc.classList.add('vt-poster');
       if (c.getAttribute('data-db')) { go('/detail', { auto: 1, name: c.getAttribute('data-name'), year: c.getAttribute('data-year'), pic: c.getAttribute('data-pic') }); return; }
       if (c.getAttribute('data-hist')) go('/detail', { repo: c.getAttribute('data-repo'), site: c.getAttribute('data-site'), id: c.getAttribute('data-id'), name: c.getAttribute('data-name'), pic: c.getAttribute('data-pic') });
     });
@@ -169,7 +180,7 @@
   function decodeEnt(t) { var d = document.createElement('textarea'); d.innerHTML = t; return d.value.replace(/\u00a0/g, ' '); }
   function bigPic(p) { return String(p || '').replace('/s_ratio_poster/', '/l_ratio_poster/'); }
   function heroHtml() {
-    return '<section class="hero" id="hero"><div class="hero-bg" id="heroBg"></div><div class="hero-shade"></div><div class="hero-in"><div class="hero-txt" id="heroTxt"></div><div class="hero-side"><div class="hero-q" id="heroQ"></div><div class="hero-poster" id="heroPoster"></div></div></div><div class="hero-dots" id="heroDots"></div></section>';
+    return '<section class="hero" id="hero"><div class="hero-bgs" id="heroBg"></div><div class="hero-shade"></div><div class="hero-in"><div class="hero-txt" id="heroTxt"></div><div class="hero-side"><div class="hero-q" id="heroQ"></div><div class="hero-poster" id="heroPoster"></div></div></div><div class="hero-dots" id="heroDots"></div></section>';
   }
   function initHero() {
     var hero = $('#hero'); if (!hero) return;
@@ -183,7 +194,9 @@
       $('#heroQ').onclick = function (e) { var x = e.target.closest('.hq'); if (x) { show(+x.getAttribute('data-k')); auto(); } };
       function show(k) {
         i = (k + l.length) % l.length; var d = l[i], u = picUrl(bigPic(d.pic));
-        $('#heroBg').style.backgroundImage = 'url("' + u + '")';
+        var bgs = $('#heroBg'), nb = document.createElement('div'); nb.className = 'hero-bg'; nb.style.backgroundImage = 'url("' + u.replace(/"/g, '%22') + '")';
+        bgs.appendChild(nb); requestAnimationFrame(function () { nb.classList.add('on'); });
+        while (bgs.children.length > 2) bgs.removeChild(bgs.firstChild);
         $('#heroPoster').innerHTML = '<img src="' + esc(u) + '" alt="">';
         $('#heroTxt').innerHTML = '<div class="hero-tag">正在热映 · TOP ' + (i + 1) + '</div><h2>' + esc(d.title) + '</h2>' +
           '<div class="hero-meta">' + (d.rating ? '<span class="star">★ ' + esc(d.rating) + '</span>' : '') + esc(d.info || d.sub || d.year) + '</div>' +
@@ -274,10 +287,40 @@
     if (best) { e.preventDefault(); best.focus(); best.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
   });
   // staggered entrance for cards as they are inserted
+  var revealIO = window.IntersectionObserver ? new IntersectionObserver(function (es) {
+    var k = 0;
+    es.filter(function (e) { return e.isIntersecting; }).sort(function (a, b) { return (a.boundingClientRect.top - b.boundingClientRect.top) || (a.boundingClientRect.left - b.boundingClientRect.left); })
+      .forEach(function (e) { var n = e.target; n.style.setProperty('--i', Math.min(k++, 12)); n.classList.remove('pre'); n.classList.add(n.classList.contains('vod') ? 'rise' : 'in'); revealIO.unobserve(n); });
+  }, { rootMargin: '0px 0px -6% 0px', threshold: 0.05 }) : null;
+  function reveal(n) { if (!revealIO || reduceMotion) return; n.classList.add('pre'); revealIO.observe(n); }
   if (window.MutationObserver) new MutationObserver(function (ms) {
-    var seen = 0;
-    ms.forEach(function (m) { [].forEach.call(m.addedNodes, function (n) { if (n.nodeType === 1 && n.classList.contains('vod') && !n.classList.contains('skel')) { n.style.setProperty('--i', Math.min(seen++, 14)); n.classList.add('rise'); } }); });
+    ms.forEach(function (m) { [].forEach.call(m.addedNodes, function (n) {
+      if (n.nodeType !== 1) return;
+      if (n.classList.contains('vod') && !n.classList.contains('skel')) reveal(n);
+      else [].forEach.call(n.querySelectorAll ? n.querySelectorAll('.hrow,.info,.hitem') : [], reveal);
+      if (n.classList.contains('hrow') || n.classList.contains('hitem')) reveal(n);
+    }); });
   }).observe(app, { childList: true, subtree: true });
+  // 3D tilt + glare on cards (fine pointers only)
+  if (window.matchMedia && matchMedia('(hover: hover) and (pointer: fine)').matches && !reduceMotion) {
+    var tiltEl = null;
+    app.addEventListener('pointermove', function (e) {
+      var p = e.target.closest ? e.target.closest('.vod:not(.skel) .pic') : null;
+      if (tiltEl && tiltEl !== p) { tiltEl.style.removeProperty('--tx'); tiltEl.style.removeProperty('--ty'); tiltEl = null; }
+      if (!p) return; tiltEl = p;
+      var r = p.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      p.style.setProperty('--tx', ((0.5 - y) * 14).toFixed(2) + 'deg'); p.style.setProperty('--ty', ((x - 0.5) * 16).toFixed(2) + 'deg');
+      p.style.setProperty('--gx', (x * 100).toFixed(1) + '%'); p.style.setProperty('--gy', (y * 100).toFixed(1) + '%');
+    });
+    app.addEventListener('pointerleave', function () { if (tiltEl) { tiltEl.style.removeProperty('--tx'); tiltEl.style.removeProperty('--ty'); tiltEl = null; } });
+  }
+  // ripple
+  document.addEventListener('pointerdown', function (e) {
+    var b = e.target.closest ? e.target.closest('.btn-play,.btn-glass,.pbtns button,.tab,.ep,.hrow .hd a,#searchForm button,.card button') : null; if (!b || reduceMotion) return;
+    var r = b.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2.2, s = document.createElement('i');
+    s.className = 'rp'; s.style.cssText = 'width:' + d + 'px;height:' + d + 'px;left:' + (e.clientX - r.left - d / 2) + 'px;top:' + (e.clientY - r.top - d / 2) + 'px';
+    b.classList.add('rp-host'); b.appendChild(s); setTimeout(function () { s.remove(); }, 700);
+  });
   var onTopScroll = function () { document.body.classList.toggle('scrolled', window.scrollY > 30); };
   window.addEventListener('scroll', onTopScroll, { passive: true }); onTopScroll();
   setInterval(function () { var c = $('#clock'); if (c) { var d = new Date(); c.textContent = (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(); } }, 10000);
@@ -819,7 +862,13 @@
     if (fast) route(); // douban home/category don't need the repo list
     loadRepos().catch(function (e) { toast(e.message); }).then(function () { if (!fast) route(); });
   }
-  window.addEventListener('hashchange', route);
+  var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  window.addEventListener('hashchange', function () {
+    if (document.startViewTransition && !reduceMotion && !document.hidden) {
+      try { document.startViewTransition(function () { route(); }); return; } catch (e) { }
+    }
+    route();
+  });
   api('/api/me').then(function (j) {
     if (!j.user) { showLogin(); return; }
     state.user = j.user; init();

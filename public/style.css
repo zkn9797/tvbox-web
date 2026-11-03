@@ -414,3 +414,66 @@ button.ghost:hover,.pbtns button:hover,.btn-glass:hover{background:var(--glass2)
   .pbtns{flex-wrap:wrap;gap:6px}.pbtns button{padding:6px 12px;font-size:13px}
   .player{border-radius:12px;margin:0 -4px}
 }
+/* ================= v5: motion ================= */
+/* hero: layered crossfade background */
+.hero-bgs{position:absolute;inset:0;overflow:hidden}
+.hero-bgs .hero-bg{opacity:0;transition:opacity 1.2s var(--ease),background-image 0s}
+.hero-bgs .hero-bg.on{opacity:1}
+@keyframes heroIn{from{opacity:0;transform:translateY(18px);filter:blur(10px)}to{opacity:1;transform:none;filter:none}}
+@keyframes posterIn{0%{opacity:0;transform:perspective(900px) rotateY(-28deg) translateX(60px) scale(.9);filter:blur(6px)}60%{filter:none}100%{opacity:1}}
+.hero.swap .hero-txt>*{animation:heroIn .9s var(--ease) both}
+.hq{transition:opacity .3s,transform .4s var(--ease)}
+.hq.on{transform:translateY(-6px)}
+.hq img{transition:box-shadow .3s,transform .4s var(--ease)}
+.hq:hover img{transform:scale(1.05)}
+/* sliding nav indicator */
+#topCats{position:relative}
+#topCats a{z-index:1}
+#topCats a.on:after,#topCats a:hover:after{display:none}
+#topCats .ind{position:absolute;left:0;top:50%;height:32px;margin-top:-16px;border-radius:999px;background:rgba(255,255,255,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 4px 14px rgba(0,0,0,.25);transition:transform .5s cubic-bezier(.34,1.4,.5,1),width .5s cubic-bezier(.34,1.4,.5,1),opacity .3s;pointer-events:none;z-index:0}
+#topCats .ind:after{content:"";position:absolute;left:30%;right:30%;bottom:2px;height:3px;border-radius:3px;background:var(--grad);box-shadow:0 0 10px rgba(255,61,104,.8)}
+@media(max-width:760px){#topCats .ind{height:28px;margin-top:-14px}}
+/* scroll reveal */
+.pre{opacity:0}
+.vod.rise{animation:rise .7s var(--ease) both;animation-delay:calc(var(--i,0) * 55ms)}
+@keyframes rise{from{opacity:0;transform:translateY(26px) scale(.94);filter:blur(6px)}to{opacity:1;transform:none;filter:none}}
+.hrow.pre,.info.pre,.hitem.pre{transform:translateY(30px)}
+.hrow.in,.info.in,.hitem.in{animation:secIn .8s var(--ease) both;animation-delay:calc(var(--i,0) * 70ms)}
+@keyframes secIn{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+.hrow.in .hd b:before{animation:barIn .7s .15s var(--ease) both}
+@keyframes barIn{from{transform:scaleY(0)}to{transform:none}}
+/* image blur-in */
+.vod .pic img{opacity:0;filter:blur(14px);transform:scale(1.08);transition:opacity .6s var(--ease),filter .8s var(--ease),transform .9s var(--ease)}
+.vod .pic img.ld{opacity:1;filter:none;transform:none}
+/* 3D tilt + glare */
+.vod .pic{transform-style:preserve-3d;will-change:transform}
+.vod:hover .pic,.vod:focus .pic{transform:perspective(800px) rotateX(var(--tx,0deg)) rotateY(var(--ty,0deg)) translateY(-8px) scale(1.04);transition:transform .18s ease-out,box-shadow .35s}
+.vod .pic:after{background:radial-gradient(circle at var(--gx,50%) var(--gy,0%),rgba(255,255,255,.28),rgba(255,255,255,.06) 30%,transparent 60%);opacity:0;transition:opacity .35s;z-index:1}
+.vod:hover .pic:after{opacity:1}
+.vod:hover img.ld{transform:scale(1.08)}
+.vod .rt,.vod .rm{transition:transform .35s var(--ease)}
+.vod:hover .rt{transform:translateZ(30px)}
+@media(hover:none){.vod:active .pic{transform:scale(.95);transition:transform .15s}}
+/* ripple */
+.rp-host{position:relative;overflow:hidden}
+.rp{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.45),rgba(255,255,255,0) 70%);transform:scale(0);animation:rp .65s var(--ease) forwards;pointer-events:none}
+@keyframes rp{to{transform:scale(1);opacity:0}}
+/* buttons */
+.btn-play,.btn-glass{transition:transform .3s cubic-bezier(.34,1.5,.5,1),box-shadow .3s,background .3s}
+.btn-play:hover,.btn-glass:hover{transform:translateY(-2px) scale(1.04)}
+.btn-play:active,.btn-glass:active{transform:scale(.96)}
+.tab,.ep{transition:transform .25s cubic-bezier(.34,1.5,.5,1),background .2s,box-shadow .25s,color .2s}
+.tab:active,.ep:active{transform:scale(.94)}
+/* view transitions: page crossfade + poster morph */
+#top{view-transition-name:topbar}
+.vt-poster,.iposter{view-transition-name:poster}
+::view-transition-old(root){animation:vtOut .35s var(--ease) both}
+::view-transition-new(root){animation:vtIn .55s var(--ease) both}
+@keyframes vtOut{to{opacity:0;transform:scale(.98);filter:blur(6px)}}
+@keyframes vtIn{from{opacity:0;transform:translateY(16px)}}
+::view-transition-group(poster){animation-duration:.6s;animation-timing-function:cubic-bezier(.22,.9,.24,1)}
+::view-transition-old(poster),::view-transition-new(poster){height:100%;object-fit:cover;overflow:hidden;border-radius:12px}
+/* page-in now handled by view transitions when available */
+@supports (view-transition-name:a){#app.page-in{animation:none}}
+/* mobile: keep the ambience, devices can afford it */
+@media(max-width:760px){body:before,body:after{display:block;opacity:.45}}
