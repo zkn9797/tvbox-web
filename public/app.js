@@ -193,7 +193,7 @@
       [].forEach.call(document.querySelectorAll('.vt-poster'), function (x) { x.classList.remove('vt-poster'); });
       var pc = c.querySelector('.pic'); if (pc) pc.classList.add('vt-poster');
       if (c.getAttribute('data-db')) { go('/detail', { auto: 1, name: c.getAttribute('data-name'), year: c.getAttribute('data-year'), pic: c.getAttribute('data-pic') }); return; }
-      if (c.getAttribute('data-hist')) go('/detail', { repo: c.getAttribute('data-repo'), site: c.getAttribute('data-site'), id: c.getAttribute('data-id'), name: c.getAttribute('data-name'), pic: c.getAttribute('data-pic') });
+      if (c.getAttribute('data-hist')) histGo(c);
     });
   }
   function decodeEnt(t) { var d = document.createElement('textarea'); d.innerHTML = t; return d.value.replace(/\u00a0/g, ' '); }
@@ -447,6 +447,11 @@
     cleanup = function () { es.close(); };
   }
 
+  // history replays by title: race for the best direct source again (no source memory, user 2026-11-03); the saved source is only the fallback
+  function histGo(el) {
+    var a = function (k) { return el.getAttribute('data-' + k) || ''; };
+    go('/detail', { auto: 1, repo: a('repo'), name: a('name'), pic: a('pic'), hsite: a('site'), hid: a('id') });
+  }
   function viewHistory() {
     app.innerHTML = '<div class="bar"><b>观看历史</b><button class="ghost" id="clr" style="margin-left:auto">清空</button></div><div class="list" id="lst"><div class="muted">加载中…</div></div>';
     function load() {
@@ -464,7 +469,7 @@
       var it = e.target.closest('.hitem'); if (!it) return;
       var site = it.getAttribute('data-repo') + '|' + it.getAttribute('data-site');
       if (e.target.getAttribute('data-del')) { api('/api/history?' + qs({ site: site, id: it.getAttribute('data-id') }), { method: 'DELETE' }).then(load); return; }
-      go('/detail', { repo: it.getAttribute('data-repo'), site: it.getAttribute('data-site'), id: it.getAttribute('data-id'), name: it.getAttribute('data-name'), pic: it.getAttribute('data-pic') });
+      histGo(it);
     };
     $('#clr').onclick = function () { if (confirm('清空全部观看历史？')) api('/api/history?all=1', { method: 'DELETE' }).then(load); };
   }
@@ -587,8 +592,8 @@
       var line = P.lines[P.li] || {}, b = $('#qb'); if (!b) return;
       $('#qbSite').textContent = siteName(P.site) + (line.flag && line.flag !== '-' ? ' · ' + line.flag : '');
       if (provisional !== undefined) setRes(provisional, true);
-      if (src) $('#qbNet').textContent = (src.mode === 'direct' ? '直连片源' : src.mode === 'local' ? '本地' : src.mode === 'proxy-m3u8' && !src.sp ? 'NAS 改写索引' : 'NAS 中转') + (src.ms != null ? ' · 解析 ' + src.ms + 'ms' : '');
-      $('#qbNet').title = src.mode === 'direct' ? '浏览器直接从片源 CDN 拉流' : '视频经 NAS 上的 tvbox-web 转发（片源要求特殊请求头、不允许跨域，或直连失败）';
+      if (src) $('#qbNet').textContent = (src.mode === 'direct' ? '直连片源' : src.mode === 'local' ? '本地' : src.mode === 'proxy-m3u8' && !src.sp ? '中转索引' : '中转') + (src.ms != null ? ' · 解析 ' + src.ms + 'ms' : '');
+      $('#qbNet').title = src.mode === 'direct' ? '浏览器直接从片源 CDN 拉流' : '视频经服务器转发（片源要求特殊请求头、不允许跨域，或直连失败）';
       b.classList.remove('hidden', 'mini'); b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
       clearTimeout(qbT); qbT = setTimeout(function () { b.classList.add('mini'); }, 6000);
     }
@@ -669,7 +674,7 @@
       var fail = function (why) {
         if (token !== P.playToken) return;
         // direct link failed in this browser (geo/IP-bound sign, DNS, CORS): retry the same source through the router once
-        if (src.mode === 'direct' && !started) { try { localStorage.setItem('tvb_proxy', String(Date.now())); } catch (e) { } toast('直连失败，改由 NAS 中转重试…'); playCurrent(startAt, 'proxy', true); return; }
+        if (src.mode === 'direct' && !started) { try { localStorage.setItem('tvb_proxy', String(Date.now())); } catch (e) { } toast('直连失败，改由中转重试…'); playCurrent(startAt, 'proxy', true); return; }
         onFail(why);
       };
       P.startTimer = setTimeout(function () { if (!started) fail('加载超时'); }, 25000);
@@ -899,6 +904,7 @@
           if (!batch.length) {
             racing = false;
             if (relayed.length && (done || rounds >= 3)) { pickRelayed(); return; } // no direct source anywhere: fall back to the NAS-relayed best
+            if (done && q.hsite && q.hid) { go('/detail', { repo: P.repo, site: q.hsite, id: q.hid, name: name, pic: q.pic || '' }); return; } // title not found by search: open the saved source
             if (done) { msg('没有找到可播放的片源'); af('在「' + repoName + '」里没有找到「' + name + '」，可以换一个首选源或手动搜索。'); $('#eps').innerHTML = '<div class="empty"><a href="#/search?' + qs({ wd: name }) + '">手动搜索「' + esc(name) + '」</a></div>'; }
             return;
           }
@@ -912,7 +918,7 @@
             rounds++;
             // nothing in this batch plays direct: keep them as backups and race the next batch, unless we've looked enough
             if (!pool.some(function (g) { return g.dir; }) && rounds < 3 && cands.some(function (c) { return !c.tried; })) {
-              relayed = relayed.concat(ok); af('这一批都需要 NAS 中转，继续找能直连的…'); racing = false; race(); return;
+              relayed = relayed.concat(ok); af('这一批都需要中转，继续找能直连的…'); racing = false; race(); return;
             }
             pool = pool.concat(relayed);
             // title match first; then direct-play sources before NAS-relayed ones (user 2026-11-03); then sources meeting this device's resolution bar, fastest first; then unknown resolution by speed; then the rest by resolution
