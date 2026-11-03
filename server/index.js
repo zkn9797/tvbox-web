@@ -181,7 +181,14 @@ route('GET', '/api/spproxy/([^/]+)', async (req, res, u, q, m) => {
 }, { public: true });
 
 // history / favorites
-route('GET', '/api/history', async (req, res, u) => json(res, { list: db.prepare('SELECT * FROM history WHERE user_id=? ORDER BY updated DESC LIMIT 200').all(u.id) }));
+// one history entry per title: sources tried or switched to while watching the same title collapse into the newest
+const histNorm = s => String(s || '').toLowerCase().replace(/[\s·・:：,，.。!！?？'"“”‘’()（）\[\]【】《》<>\-_—|\/\\]+/g, '').replace(/(国语|粤语|中字|高清|蓝光|hd|4k|1080p|完结)$/g, '');
+function histDedupe(uid) {
+  const rows = db.prepare('SELECT site,vod_id,vod_name FROM history WHERE user_id=? ORDER BY updated DESC').all(uid), seen = new Set();
+  const del = db.prepare('DELETE FROM history WHERE user_id=? AND site=? AND vod_id=?');
+  for (const r of rows) { const k = histNorm(r.vod_name) || r.site + '|' + r.vod_id; if (seen.has(k)) del.run(uid, r.site, r.vod_id); else seen.add(k); }
+}
+route('GET', '/api/history', async (req, res, u) => { histDedupe(u.id); json(res, { list: db.prepare('SELECT * FROM history WHERE user_id=? ORDER BY updated DESC LIMIT 200').all(u.id) }); });
 route('GET', '/api/history/one', async (req, res, u, q) => json(res, { item: db.prepare('SELECT * FROM history WHERE user_id=? AND site=? AND vod_id=?').get(u.id, q.get('site'), q.get('id')) || null }));
 route('POST', '/api/history', async (req, res, u) => {
   const b = await readBody(req);
@@ -190,6 +197,7 @@ route('POST', '/api/history', async (req, res, u) => {
     ON CONFLICT(user_id,site,vod_id) DO UPDATE SET vod_name=excluded.vod_name,vod_pic=excluded.vod_pic,flag=excluded.flag,ep_index=excluded.ep_index,
     ep_name=excluded.ep_name,position=excluded.position,duration=excluded.duration,updated=excluded.updated`)
     .run(u.id, b.site, String(b.vod_id), b.vod_name || '', b.vod_pic || '', b.flag || '', Number(b.ep_index || 0), b.ep_name || '', Number(b.position || 0), Number(b.duration || 0), Date.now());
+  histDedupe(u.id);
   json(res, { ok: true });
 });
 route('DELETE', '/api/history', async (req, res, u, q) => {

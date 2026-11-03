@@ -514,3 +514,8 @@ button.ghost:hover,.pbtns button:hover,.btn-glass:hover{background:var(--glass2)
 body.watching:before,body.watching:after{animation-play-state:paused}
 body.watching .qb-dot{animation:none}
 .qb{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(14,15,20,.72)}
+/* nav: no click-focus ring (it got clipped by the scrolling nav and looked like a broken bracket); keyboard ring stays, inside the link */
+#topCats a:focus,#navLinks a:focus,.vod:focus,.tab:focus{outline:none}
+#topCats a:focus-visible,#navLinks a:focus-visible{outline:2px solid var(--ac);outline-offset:-2px;border-radius:999px}
+.vod:focus-visible,.tab:focus-visible{outline:2px solid var(--ac);outline-offset:3px}
+#topCats{padding-top:3px;padding-bottom:3px}
