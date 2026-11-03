@@ -139,13 +139,15 @@ async function run(reason = 'schedule') {
   return running;
 }
 
+function localDay() { return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date()); }
 function localHour() { return Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: TZ }).format(new Date())) % 24; }
 function start() {
   if (process.env.CMS_FEED === '0') return;
   const tick = () => {
-    const last = Number(kvGet('last') || 0);
-    // nightly at HOUR (local); also once soon after first install if it never ran
-    if ((localHour() === HOUR && Date.now() - last > 20 * 3600e3) || !last) run(last ? 'nightly' : 'first-run').catch(e => console.log('[cmsfeed] failed', e.message));
+    const last = Number(kvGet('last') || 0), today = localDay();
+    // nightly at HOUR (local), once per local day; a manual/first run earlier that night must not block it
+    if (localHour() === HOUR && kvGet('nightly') !== today) { kvSet('nightly', today); run('nightly').catch(e => console.log('[cmsfeed] failed', e.message)); }
+    else if (!last) run('first-run').catch(e => console.log('[cmsfeed] failed', e.message));
   };
   setTimeout(tick, 90e3).unref();
   setInterval(tick, 10 * 60e3).unref();
